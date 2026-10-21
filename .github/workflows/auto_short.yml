@@ -23,7 +23,7 @@ jobs:
 
       - name: Run AI Agent Video Generator & Uploader
         env:
-        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
         YOUTUBE_CREDENTIALS: ${{ secrets.YOUTUBE_CREDENTIALS }}
         run: python generate_and_upload.py

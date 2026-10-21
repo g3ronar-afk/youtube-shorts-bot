@@ -50,22 +50,21 @@ async def create_voiceover(text, output_file="voiceover.mp3"):
     await communicate.save(output_file)
 
 # ================= ====================
-# 3. DOWNLOAD BACKGROUND VIDEO (PEXELS)
+# 3. DOWNLOAD BACKGROUND VIDEO (PIXABAY)
 # ======================================
 def download_background_video(query, output_file="background.mp4"):
-    print(f"Searching stock video for: {query}...")
-    headers = {"Authorization": os.environ.get("PEXELS_API_KEY")}
-    url = f"https://api.pexels.com/videos/search?query={query}&per_page=5&orientation=portrait"
+    print(f"Searching stock video on Pixabay for: {query}...")
+    api_key = os.environ.get("PIXABAY_API_KEY")
+    url = f"https://pixabay.com/api/videos/?key={api_key}&q={query}&orientation=vertical&per_page=3"
     
-    response = requests.get(url, headers=headers).json()
-    if not response.get("videos"):
+    response = requests.get(url).json()
+    if not response.get("hits"):
         # Fallback search kung walang nahanap
-        url = "https://api.pexels.com/videos/search?query=nature&per_page=5&orientation=portrait"
-        response = requests.get(url, headers=headers).json()
+        url = f"https://pixabay.com/api/videos/?key={api_key}&q=nature&orientation=vertical&per_page=3"
+        response = requests.get(url).json()
         
-    video_files = response["videos"][0]["video_files"]
-    # Kunin ang HD video link
-    video_url = next(f["link"] for f in video_files if f.get("height") and f["height"] >= 1080)
+    # Kunin ang HD video link mula sa Pixabay results
+    video_url = response["hits"][0]["videos"]["large"]["url"]
     
     print("Downloading background video...")
     video_data = requests.get(video_url).content

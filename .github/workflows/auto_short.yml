@@ -2,8 +2,8 @@ name: Auto YouTube Short Generator
 
 on:
   schedule:
-    - cron: '0 6 * * *' # Gagana araw-araw tuwing 6:00 AM UTC
-  workflow_dispatch: # Pwede mo ring i-trigger manual kahit kailan sa browser
+    - cron: '0 6 * * *'
+  workflow_dispatch:
 
 jobs:
   build-and-upload:

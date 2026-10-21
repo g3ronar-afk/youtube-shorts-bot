@@ -1,0 +1,29 @@
+name: Auto YouTube Short Generator
+
+on:
+  schedule:
+    - cron: '0 6 * * *' # Gagana araw-araw tuwing 6:00 AM UTC
+  workflow_dispatch: # Pwede mo ring i-trigger manual kahit kailan sa browser
+
+jobs:
+  build-and-upload:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Dependencies
+        run: |
+          pip install google-generativeai edge-tts moviepy google-api-python-client requests
+
+      - name: Run AI Agent Video Generator & Uploader
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          YOUTUBE_CREDENTIALS: ${{ secrets.YOUTUBE_CREDENTIALS }}
+        run: python generate_and_upload.py

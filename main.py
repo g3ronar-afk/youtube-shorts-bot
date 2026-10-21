@@ -17,17 +17,17 @@ from moviepy import VideoFileClip, AudioFileClip, TextClip, CompositeVideoClip
 # ============================================================
 # CONFIG
 # ============================================================
-GEMINI_API_KEY          = os.environ.get("GEMINI_API_KEY")
-PIXABAY_API_KEY         = os.environ.get("PIXABAY_API_KEY")
+GEMINI_API_KEY           = os.environ.get("GEMINI_API_KEY")
+PIXABAY_API_KEY          = os.environ.get("PIXABAY_API_KEY")
 YOUTUBE_CREDENTIALS_JSON = os.environ.get("YOUTUBE_CREDENTIALS")
 
 if not all([GEMINI_API_KEY, PIXABAY_API_KEY, YOUTUBE_CREDENTIALS_JSON]):
-    raise EnvironmentError("Missing env vars. Need GEMINI_API_KEY, PIXABAY_API_KEY, YOUTUBE_CREDENTIALS.")
+    raise EnvironmentError("Missing env vars.")
 
 client = genai.Client(api_key=GEMINI_API_KEY)
 
 # ============================================================
-# 1. GENERATE CONTENT WITH GEMINI
+# 1. GENERATE CONTENT
 # ============================================================
 def generate_content():
     prompt = (
@@ -79,11 +79,9 @@ def download_stock_video(query="dark aesthetic moody cinematic"):
     raise RuntimeError("No valid video URL.")
 
 # ============================================================
-# 3. GENERATE VOICEOVER USING EDGE-TTS
+# 3. GENERATE VOICEOVER
 # ============================================================
 async def generate_voiceover(text, output_path="voiceover.mp3"):
-    # Pwedeng palitan ang boses: "en-US-ChristopherNeural" (Lalaki) or "en-US-AriaNeural" (Babae)
-    # Pwede ring "fil-PH-AngeloNeural" kung gusto mo ng Tagalog
     voice = "en-US-ChristopherNeural" 
     communicate = edge_tts.Communicate(text, voice)
     await communicate.save(output_path)
@@ -91,27 +89,20 @@ async def generate_voiceover(text, output_path="voiceover.mp3"):
     return output_path
 
 # ============================================================
-# 4. CREATE VIDEO (With Text and Audio)
+# 4. CREATE VIDEO (Fixed TextClip parameters)
 # ============================================================
 def create_video(script_text, output_path="final_output.mp4"):
     print("[Video] Downloading background...")
     bg_path = download_stock_video()
     
     print("[Video] Generating voiceover...")
-    # Run the async TTS function
     asyncio.run(generate_voiceover(script_text, "voiceover.mp3"))
 
     print("[Video] Editing...")
     clip = VideoFileClip(bg_path)
     clip = clip.subclipped(0, min(15, clip.duration))
-    
     audio = AudioFileClip("voiceover.mp3")
     
-    # Kapag mas mahaba ang audio kaysa sa video, i-loop ang video
-    # (Pero dahil 30-45 words lang, usually kasya ito sa 15 seconds)
-    final_duration = max(clip.duration, audio.duration)
-    
-    # Resize/Crop to 9:16
     w, h = clip.size
     if w > h:
         new_w = int(h * 9 / 16)
@@ -119,25 +110,23 @@ def create_video(script_text, output_path="final_output.mp4"):
         x2 = min(w, x1 + new_w)
         clip = clip.cropped(x1=x1, y1=0, x2=x2, y2=h)
 
-    # Add text overlay (Optional but highly recommended for Shorts)
+    # ✅ Fixed: font_size instead of fontsize, using Linux font path
     try:
-        # Gumawa ng text box na naka-center sa video
         txt_clip = TextClip(
             text=script_text,
-            fontsize=50,
+            font_size=50,
             color='white',
-            font='Arial-Bold',
-            size=(clip.w - 100, None), # May margin sa gilid
+            font='/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+            size=(clip.w - 100, None),
             method='caption',
             text_align='center'
         ).with_position(('center', 'center')).with_duration(clip.duration)
         
         final_clip = CompositeVideoClip([clip, txt_clip])
     except Exception as e:
-        print(f"[Warning] TextClip failed (baka walang font): {e}")
-        final_clip = clip # Fallback kung walang font sa runner
+        print(f"[Warning] TextClip failed: {e}")
+        final_clip = clip
 
-    # Isaksak ang audio
     final_clip = final_clip.with_audio(audio)
     
     final_clip.write_videofile(
@@ -151,7 +140,6 @@ def create_video(script_text, output_path="final_output.mp4"):
     clip.close()
     audio.close()
     final_clip.close()
-    
     return output_path
 
 # ============================================================
@@ -159,6 +147,10 @@ def create_video(script_text, output_path="final_output.mp4"):
 # ============================================================
 def upload_to_youtube(video_file_path, title, description):
     creds_dict = json.loads(YOUTUBE_CREDENTIALS_JSON)
+    # ✅ Added a check to give a clear error message if it's missing
+    if "refresh_token" not in creds_dict:
+        raise KeyError("refresh_token is missing from YOUTUBE_CREDENTIALS. Please re-authorize with access_type='offline' and update the secret.")
+
     creds = google.oauth2.credentials.Credentials(
         token=None,
         refresh_token=creds_dict["refresh_token"],

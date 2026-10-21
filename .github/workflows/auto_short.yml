@@ -20,7 +20,7 @@ jobs:
       - name: Install Dependencies
         run: |
           pip install --upgrade pip
-          pip install google-genai edge-tts moviepy google-api-python-client requests
+          pip install google-genai edge-tts "moviepy<2.0.0" google-api-python-client requests
 
       - name: Run AI Agent Video Generator & Uploader
         env:

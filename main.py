@@ -6,6 +6,7 @@ import asyncio
 import edge_tts
 import time
 import numpy as np
+from PIL import Image, ImageDraw, ImageFont
 
 from google import genai
 from google.genai import errors as genai_errors
@@ -26,7 +27,7 @@ YOUTUBE_CREDENTIALS_JSON = os.environ.get("YOUTUBE_CREDENTIALS")
 client = genai.Client(api_key=GEMINI_API_KEY)
 
 # ============================================================
-# 1. GENERATE CONTENT (VIRAL HOOK + HASHTAGS SA PROMPT)
+# 1. GENERATE CONTENT (VIRAL HOOK + SEO)
 # ============================================================
 def generate_content():
     prompt = (
@@ -39,7 +40,7 @@ def generate_content():
         "3. End with a subtle Call to Action (e.g., 'Watch the full video on my channel', 'Follow for the truth').\n"
         "4. DO NOT use Tagalog or any other language. English only.\n"
         "Format exactly like this:\n"
-        "Title: [Catchy Short Title]\n"
+        "Title: [Catchy Short Title, max 60 chars, include a hook]\n"
         "Script: [The message]"
     )
     
@@ -100,7 +101,7 @@ def download_stock_video(query="dark cinematic vertical moody"):
     raise RuntimeError("Nabigo ang lahat ng attempts na mag-download ng valid na video.")
 
 # ============================================================
-# 3. GENERATE VOICEOVER + WORD TIMESTAMPS
+# 3. GENERATE VOICEOVER + TIMINGS
 # ============================================================
 async def generate_voiceover_with_timings(text, output_path="voiceover.mp3"):
     voice = "en-US-AndrewNeural"
@@ -128,31 +129,22 @@ async def generate_voiceover_with_timings(text, output_path="voiceover.mp3"):
             await asyncio.sleep(5)
 
 # ============================================================
-# 4. CREATE KARAOKE CAPTIONS
+# 4. KARAOKE CAPTIONS (Word-by-word)
 # ============================================================
 def create_karaoke_captions(word_timings, video_size, font_path, max_words_per_line=3):
-    """Gumagawa ng ImageClip per word group na may highlight sa kasalukuyang salita."""
-    from PIL import Image, ImageDraw, ImageFont
-    
     clips = []
     font_size = 65
     stroke_width = 3
     
-    # Group words into lines of 3
     for i in range(0, len(word_timings), max_words_per_line):
         group = word_timings[i:i + max_words_per_line]
         if not group:
             continue
         
-        start_time = group[0]["start"]
-        end_time = group[-1]["end"]
-        
-        # Para sa bawat salita sa group, gumawa ng frame na naka-highlight ito
         for j, active_word in enumerate(group):
             word_start = active_word["start"]
             word_end = active_word["end"]
             
-            # Gumawa ng image gamit ang PIL
             img = Image.new("RGBA", video_size, (0, 0, 0, 0))
             draw = ImageDraw.Draw(img)
             
@@ -161,7 +153,6 @@ def create_karaoke_captions(word_timings, video_size, font_path, max_words_per_l
             except:
                 font = ImageFont.load_default()
             
-            # Kalkulahin ang posisyon ng bawat salita
             total_text = " ".join(w["word"] for w in group)
             bbox = draw.textbbox((0, 0), total_text, font=font)
             total_width = bbox[2] - bbox[0]
@@ -171,18 +162,16 @@ def create_karaoke_captions(word_timings, video_size, font_path, max_words_per_l
             current_x = start_x
             for k, w in enumerate(group):
                 word_text = w["word"] + (" " if k < len(group) - 1 else "")
-                color = (255, 214, 10) if k == j else (255, 255, 255)  # Dilaw kung active
+                color = (255, 214, 10) if k == j else (255, 255, 255)
                 
-                # Outline
                 for dx in [-stroke_width, 0, stroke_width]:
                     for dy in [-stroke_width, 0, stroke_width]:
-                        draw.text((current_x + dx, y_pos + dy), word_text, font=font, fill=(0, 0, 0))
+                        draw.text((current_x + dx, y_pos + dy), word_text, font=font, fill=(0, 0, 0, 255))
                 
-                draw.text((current_x, y_pos), word_text, font=font, fill=color)
+                draw.text((current_x, y_pos), word_text, font=font, fill=color + (255,))
                 bbox_w = draw.textbbox((0, 0), word_text, font=font)
                 current_x += bbox_w[2] - bbox_w[0]
             
-            # Gawing ImageClip
             frame = np.array(img)
             clip = ImageClip(frame).with_start(word_start).with_duration(word_end - word_start)
             clips.append(clip)
@@ -190,7 +179,7 @@ def create_karaoke_captions(word_timings, video_size, font_path, max_words_per_l
     return clips
 
 # ============================================================
-# 5. CREATE VIDEO (With Ken Burns, Dark Overlay, Karaoke Captions)
+# 5. CREATE VIDEO (No Hashtags on video, Clean & Cinematic)
 # ============================================================
 def create_video(script_text, output_path="final_output.mp4"):
     print("[Video] Downloading background...")
@@ -208,7 +197,6 @@ def create_video(script_text, output_path="final_output.mp4"):
     if clip.duration < duration:
         clip = clip.with_effects([vfx.Loop(duration=duration)])
 
-    # Crop to 9:16
     w, h = clip.size
     if w > h:
         new_w = int(h * 9 / 16)
@@ -216,18 +204,18 @@ def create_video(script_text, output_path="final_output.mp4"):
         x2 = min(w, x1 + new_w)
         clip = clip.cropped(x1=x1, y1=0, x2=x2, y2=h)
 
-    # Ken Burns
     clip = clip.with_effects([vfx.Resize(lambda t: 1 + 0.18 * (t / duration))])
-
-    # Dark Overlay
     overlay = ColorClip(size=clip.size, color=(0, 0, 0)).with_opacity(0.5).with_duration(duration)
 
-    # Karaoke Captions
     print("[Video] Building karaoke captions...")
     font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
     caption_clips = create_karaoke_captions(word_timings, clip.size, font_path)
 
-    final_clip = CompositeVideoClip([clip, overlay] + caption_clips)
+    if caption_clips:
+        final_clip = CompositeVideoClip([clip, overlay] + caption_clips)
+    else:
+        final_clip = CompositeVideoClip([clip, overlay])
+
     final_clip = final_clip.with_audio(voice_audio)
 
     final_clip.write_videofile(
@@ -244,7 +232,7 @@ def create_video(script_text, output_path="final_output.mp4"):
     return output_path
 
 # ============================================================
-# 6. UPLOAD TO YOUTUBE (With Better SEO)
+# 6. UPLOAD TO YOUTUBE (AUTO HASHTAGS IN DESCRIPTION)
 # ============================================================
 def upload_to_youtube(video_file_path, title, description):
     creds_dict = json.loads(YOUTUBE_CREDENTIALS_JSON)
@@ -263,7 +251,8 @@ def upload_to_youtube(video_file_path, title, description):
             "title": title,
             "description": description,
             "tags": ["stoicism", "narcissism", "mindset", "shorts", "darkpsychology", 
-                     "motivation", "mental toughness", "stoic wisdom"],
+                     "motivation", "mental toughness", "stoic wisdom", "narcissist", 
+                     "toxic relationship", "self improvement"],
             "categoryId": "27",
         },
         "status": {"privacyStatus": "public", "selfDeclaredMadeForKids": False},
@@ -287,11 +276,11 @@ if __name__ == "__main__":
     raw = generate_content()
     title, script = parse_gemini_output(raw)
     
-    # SEO-optimized description
+    # Dito natin awtomatikong inilalagay ang mga hashtags sa description
     description = (
         f"{script}\n\n"
         f"Watch the full breakdown on my channel!\n\n"
-        f"#Stoicism #Narcissism #Mindset #Shorts #DarkPsychology #MentalToughness"
+        f"#Stoicism #Narcissism #Mindset #Shorts #DarkPsychology #MentalToughness #ToxicRelationships #SelfImprovement"
     )
     
     print("=== 2) Creating video ===")

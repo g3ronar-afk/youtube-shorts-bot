@@ -95,18 +95,31 @@ def download_stock_video(query="dark cinematic vertical moody"):
     raise RuntimeError("No valid video URL.")
 
 # ============================================================
-# 3. GENERATE VOICEOVER (Natural at Malumanay)
+# 3. GENERATE VOICEOVER (With Retry Logic)
 # ============================================================
 async def generate_voiceover(text, output_path="voiceover.mp3"):
     voice = "en-US-AndrewNeural" 
-    # Ginawa nating -8% na lang para hindi masyadong antok, pero malumanay pa rin
-    communicate = edge_tts.Communicate(text, voice, rate="-8%", pitch="-2Hz")
-    await communicate.save(output_path)
-    print(f"[TTS] Voiceover saved: {output_path}")
-    return output_path
+    max_retries = 3
+    
+    for attempt in range(max_retries):
+        try:
+            # Ginawa nating -8% para hindi masyadong antok, pero malumanay pa rin
+            communicate = edge_tts.Communicate(text, voice, rate="-8%", pitch="-2Hz")
+            await communicate.save(output_path)
+            print(f"[TTS] Voiceover saved: {output_path}")
+            return output_path
+        except edge_tts.exceptions.NoAudioReceived as e:
+            print(f"[TTS Warning] No audio received (attempt {attempt + 1}/{max_retries}). Temporary issue...")
+            if attempt == max_retries - 1:
+                print("[TTS ERROR] All retries failed. Microsoft Edge TTS service is not responding.")
+                raise
+            await asyncio.sleep(5)  # Maghintay ng 5 segundo bago subukan muli
+        except Exception as e:
+            print(f"[TTS ERROR] Unexpected error: {type(e).__name__} - {e}")
+            raise
 
 # ============================================================
-# 4. CREATE VIDEO
+# 4. CREATE VIDEO (With Ken Burns, Dark Overlay, Text)
 # ============================================================
 def create_video(script_text, output_path="final_output.mp4"):
     print("[Video] Downloading background...")
@@ -119,13 +132,14 @@ def create_video(script_text, output_path="final_output.mp4"):
     clip = VideoFileClip(bg_path)
     voice_audio = AudioFileClip("voiceover.mp3")
     
-    # Dahil 18-22 words lang, mabilis lang ito. Dagdagan natin ng konting padding.
+    # Itugma ang haba ng video sa haba ng boses (+ 0.3 seconds padding)
     duration = voice_audio.duration + 0.3
     clip = clip.subclipped(0, min(duration, clip.duration))
     
     if clip.duration < duration:
         clip = clip.with_effects([vfx.Loop(duration=duration)])
 
+    # Crop to 9:16 vertical
     w, h = clip.size
     if w > h:
         new_w = int(h * 9 / 16)
@@ -133,24 +147,24 @@ def create_video(script_text, output_path="final_output.mp4"):
         x2 = min(w, x1 + new_w)
         clip = clip.cropped(x1=x1, y1=0, x2=x2, y2=h)
 
-    # KEN BURNS EFFECT (Mas mabilis ng konti para dynamic)
+    # KEN BURNS EFFECT
     clip = clip.with_effects([vfx.Resize(lambda t: 1 + 0.18 * (t / duration))])
 
     # DARK OVERLAY
     overlay = ColorClip(size=clip.size, color=(0, 0, 0)).with_opacity(0.5).with_duration(duration)
 
-    # TEXT OVERLAY (Pinalaki natin ang font at ginawang naka-box para kitang-kita)
+    # TEXT OVERLAY
     try:
         txt_clip = TextClip(
             text=script_text,
-            font_size=55, # Mas malaki
+            font_size=55,
             color='white',
             font='/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
             size=(clip.w - 80, None),
             method='caption',
             text_align='center',
             stroke_color='black',
-            stroke_width=3 # Mas kapal ang outline
+            stroke_width=3
         ).with_position(('center', 'center')).with_duration(duration)
         final_clip = CompositeVideoClip([clip, overlay, txt_clip])
     except Exception as e:
@@ -215,7 +229,6 @@ if __name__ == "__main__":
     raw = generate_content()
     title, script = parse_gemini_output(raw)
     
-    # Pinalitan natin ang description para may CTA din
     description = f"{script}\n\nWatch the full breakdown on my channel!\n\n#Stoicism #Narcissism #Mindset #Shorts"
     
     print("=== 2) Creating video ===")

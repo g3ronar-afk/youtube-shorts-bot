@@ -2,7 +2,7 @@ name: Auto YouTube Short
 
 on:
   schedule:
-    - cron: "0 */6 * * *"   # every 6 hours
+    - cron: "0 17 * * *"
   workflow_dispatch:        # manual trigger
 
 jobs:

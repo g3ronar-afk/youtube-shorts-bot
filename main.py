@@ -75,10 +75,10 @@ def parse_gemini_output(raw_text):
     return title[:100], script
 
 # ============================================================
-# 2. DOWNLOAD STOCK VIDEO
+# 2. DOWNLOAD STOCK VIDEO (With File Validation)
 # ============================================================
 def download_stock_video(query="dark cinematic vertical moody"):
-    url = f"https://pixabay.com/api/videos/?key={PIXABAY_API_KEY}&q={query}&per_page=15&safesearch=true"
+    url = f"https://pixabay.com/api/videos/?key={PIXABAY_API_KEY}&q={query}&per_page=20&safesearch=true"
     resp = requests.get(url, timeout=30)
     resp.raise_for_status()
     hits = resp.json().get("hits", [])
@@ -86,13 +86,32 @@ def download_stock_video(query="dark cinematic vertical moody"):
     
     random.shuffle(hits)
     for hit in hits:
-        for quality in ("medium", "large"):
+        for quality in ("medium", "large", "small"):
             v = hit.get("videos", {}).get(quality)
             if v and v.get("url"):
-                with open("background.mp4", "wb") as f:
-                    f.write(requests.get(v["url"], timeout=60).content)
-                return "background.mp4"
-    raise RuntimeError("No valid video URL.")
+                try:
+                    print(f"[Pixabay] Downloading {quality} video...")
+                    video_data = requests.get(v["url"], timeout=60).content
+                    
+                    # Check kung may laman at valid ang size (dapat > 100KB)
+                    if len(video_data) < 100000:
+                        print("[Pixabay Warning] File too small, likely corrupted. Skipping...")
+                        continue
+                        
+                    with open("background.mp4", "wb") as f:
+                        f.write(video_data)
+                        
+                    # I-verify kung mababasa ng moviepy
+                    test_clip = VideoFileClip("background.mp4")
+                    test_clip.close() # Kung umabot dito, valid ang video
+                    
+                    print(f"[Pixabay] Success! Downloaded valid video.")
+                    return "background.mp4"
+                except Exception as e:
+                    print(f"[Pixabay Warning] Failed to download/verify video: {e}. Trying next...")
+                    continue
+                    
+    raise RuntimeError("Nabigo ang lahat ng attempts na mag-download ng valid na video.")
 
 # ============================================================
 # 3. GENERATE VOICEOVER (With Retry Logic)
@@ -103,7 +122,6 @@ async def generate_voiceover(text, output_path="voiceover.mp3"):
     
     for attempt in range(max_retries):
         try:
-            # Ginawa nating -8% para hindi masyadong antok, pero malumanay pa rin
             communicate = edge_tts.Communicate(text, voice, rate="-8%", pitch="-2Hz")
             await communicate.save(output_path)
             print(f"[TTS] Voiceover saved: {output_path}")
@@ -113,7 +131,7 @@ async def generate_voiceover(text, output_path="voiceover.mp3"):
             if attempt == max_retries - 1:
                 print("[TTS ERROR] All retries failed. Microsoft Edge TTS service is not responding.")
                 raise
-            await asyncio.sleep(5)  # Maghintay ng 5 segundo bago subukan muli
+            await asyncio.sleep(5)
         except Exception as e:
             print(f"[TTS ERROR] Unexpected error: {type(e).__name__} - {e}")
             raise
@@ -132,14 +150,12 @@ def create_video(script_text, output_path="final_output.mp4"):
     clip = VideoFileClip(bg_path)
     voice_audio = AudioFileClip("voiceover.mp3")
     
-    # Itugma ang haba ng video sa haba ng boses (+ 0.3 seconds padding)
     duration = voice_audio.duration + 0.3
     clip = clip.subclipped(0, min(duration, clip.duration))
     
     if clip.duration < duration:
         clip = clip.with_effects([vfx.Loop(duration=duration)])
 
-    # Crop to 9:16 vertical
     w, h = clip.size
     if w > h:
         new_w = int(h * 9 / 16)
@@ -147,13 +163,10 @@ def create_video(script_text, output_path="final_output.mp4"):
         x2 = min(w, x1 + new_w)
         clip = clip.cropped(x1=x1, y1=0, x2=x2, y2=h)
 
-    # KEN BURNS EFFECT
     clip = clip.with_effects([vfx.Resize(lambda t: 1 + 0.18 * (t / duration))])
 
-    # DARK OVERLAY
     overlay = ColorClip(size=clip.size, color=(0, 0, 0)).with_opacity(0.5).with_duration(duration)
 
-    # TEXT OVERLAY
     try:
         txt_clip = TextClip(
             text=script_text,

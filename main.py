@@ -12,7 +12,7 @@ import google.oauth2.credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
-from moviepy import VideoFileClip, AudioFileClip, TextClip, CompositeVideoClip
+from moviepy import VideoFileClip, AudioFileClip, TextClip, CompositeVideoClip, ColorClip, vfx
 
 # ============================================================
 # CONFIG
@@ -21,22 +21,21 @@ GEMINI_API_KEY           = os.environ.get("GEMINI_API_KEY")
 PIXABAY_API_KEY          = os.environ.get("PIXABAY_API_KEY")
 YOUTUBE_CREDENTIALS_JSON = os.environ.get("YOUTUBE_CREDENTIALS")
 
-if not all([GEMINI_API_KEY, PIXABAY_API_KEY, YOUTUBE_CREDENTIALS_JSON]):
-    raise EnvironmentError("Missing env vars.")
-
 client = genai.Client(api_key=GEMINI_API_KEY)
 
 # ============================================================
-# 1. GENERATE CONTENT
+# 1. GENERATE CONTENT (STRICTLY ENGLISH)
 # ============================================================
 def generate_content():
     prompt = (
-        "Gumawa ng isang malakas at makabuluhang mensahe tungkol sa Stoicism, mental toughness, "
-        "o kaya ay pag-unawa sa mga manipulatibong ugali ng isang narcissist. "
-        "Gawin itong angkop para sa isang YouTube Short (mga 30 hanggang 45 words lang). "
-        "Ibigay ito sa ganitong format:\n"
-        "Title: [Maikling Pamagat na Catchy]\n"
-        "Script: [Ang mensahe o quote na may malalim na aral]"
+        "You are a master of Stoic philosophy and dark psychology. "
+        "Write a powerful, cinematic, and deeply impactful message in STRICTLY ENGLISH about Stoicism, mental toughness, "
+        "or understanding the manipulative behaviors of a narcissist. "
+        "This is for a YouTube Short. Start with a strong 3-second hook. "
+        "Keep it strictly between 30 to 45 words. DO NOT use Tagalog or any other language.\n"
+        "Format exactly like this:\n"
+        "Title: [Catchy Short Title]\n"
+        "Script: [The message or quote]"
     )
     try:
         response = client.models.generate_content(model="gemini-3.8-flash", contents=prompt)
@@ -61,8 +60,8 @@ def parse_gemini_output(raw_text):
 # ============================================================
 # 2. DOWNLOAD STOCK VIDEO
 # ============================================================
-def download_stock_video(query="dark aesthetic moody cinematic"):
-    url = f"https://pixabay.com/api/videos/?key={PIXABAY_API_KEY}&q={query}&per_page=10&safesearch=true"
+def download_stock_video(query="dark cinematic vertical moody"):
+    url = f"https://pixabay.com/api/videos/?key={PIXABAY_API_KEY}&q={query}&per_page=15&safesearch=true"
     resp = requests.get(url, timeout=30)
     resp.raise_for_status()
     hits = resp.json().get("hits", [])
@@ -70,7 +69,7 @@ def download_stock_video(query="dark aesthetic moody cinematic"):
     
     random.shuffle(hits)
     for hit in hits:
-        for quality in ("medium", "small", "large", "tiny"):
+        for quality in ("medium", "large"):
             v = hit.get("videos", {}).get(quality)
             if v and v.get("url"):
                 with open("background.mp4", "wb") as f:
@@ -79,17 +78,20 @@ def download_stock_video(query="dark aesthetic moody cinematic"):
     raise RuntimeError("No valid video URL.")
 
 # ============================================================
-# 3. GENERATE VOICEOVER
+# 3. GENERATE VOICEOVER (Natural at Malumanay)
 # ============================================================
 async def generate_voiceover(text, output_path="voiceover.mp3"):
-    voice = "en-US-ChristopherNeural" 
-    communicate = edge_tts.Communicate(text, voice)
+    # AndrewNeural: Natural, warm, at hindi robotic
+    # rate="-12%": Bahagyang bumagal para maging malumanay
+    # pitch="-2Hz": Bahagyang bumaba para maging kalmado at may bigat
+    voice = "en-US-AndrewNeural" 
+    communicate = edge_tts.Communicate(text, voice, rate="-12%", pitch="-2Hz")
     await communicate.save(output_path)
     print(f"[TTS] Voiceover saved: {output_path}")
     return output_path
 
 # ============================================================
-# 4. CREATE VIDEO (Fixed TextClip parameters)
+# 4. CREATE VIDEO (With Ken Burns, Dark Overlay, Text)
 # ============================================================
 def create_video(script_text, output_path="final_output.mp4"):
     print("[Video] Downloading background...")
@@ -100,9 +102,16 @@ def create_video(script_text, output_path="final_output.mp4"):
 
     print("[Video] Editing...")
     clip = VideoFileClip(bg_path)
-    clip = clip.subclipped(0, min(15, clip.duration))
-    audio = AudioFileClip("voiceover.mp3")
+    voice_audio = AudioFileClip("voiceover.mp3")
     
+    # Itugma ang haba ng video sa haba ng boses (+ 0.5 seconds padding)
+    duration = voice_audio.duration + 0.5
+    clip = clip.subclipped(0, min(duration, clip.duration))
+    
+    if clip.duration < duration:
+        clip = clip.with_effects([vfx.Loop(duration=duration)])
+
+    # Crop to 9:16 vertical
     w, h = clip.size
     if w > h:
         new_w = int(h * 9 / 16)
@@ -110,35 +119,43 @@ def create_video(script_text, output_path="final_output.mp4"):
         x2 = min(w, x1 + new_w)
         clip = clip.cropped(x1=x1, y1=0, x2=x2, y2=h)
 
-    # ✅ Fixed: font_size instead of fontsize, using Linux font path
+    # KEN BURNS EFFECT
+    clip = clip.with_effects([vfx.Resize(lambda t: 1 + 0.15 * (t / duration))])
+
+    # DARK OVERLAY
+    overlay = ColorClip(size=clip.size, color=(0, 0, 0)).with_opacity(0.5).with_duration(duration)
+
+    # TEXT OVERLAY
     try:
         txt_clip = TextClip(
             text=script_text,
-            font_size=50,
+            font_size=45,
             color='white',
             font='/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
-            size=(clip.w - 100, None),
+            size=(clip.w - 80, None),
             method='caption',
-            text_align='center'
-        ).with_position(('center', 'center')).with_duration(clip.duration)
-        
-        final_clip = CompositeVideoClip([clip, txt_clip])
+            text_align='center',
+            stroke_color='black',
+            stroke_width=2
+        ).with_position(('center', 'center')).with_duration(duration)
+        final_clip = CompositeVideoClip([clip, overlay, txt_clip])
     except Exception as e:
         print(f"[Warning] TextClip failed: {e}")
-        final_clip = clip
+        final_clip = CompositeVideoClip([clip, overlay])
 
-    final_clip = final_clip.with_audio(audio)
-    
+    # WALANG MUSIC - Voiceover lang
+    final_clip = final_clip.with_audio(voice_audio)
+
     final_clip.write_videofile(
         output_path, 
-        fps=24, 
+        fps=30, 
         codec="libx264", 
         audio_codec="aac",
         logger=None
     )
     
     clip.close()
-    audio.close()
+    voice_audio.close()
     final_clip.close()
     return output_path
 
@@ -147,10 +164,6 @@ def create_video(script_text, output_path="final_output.mp4"):
 # ============================================================
 def upload_to_youtube(video_file_path, title, description):
     creds_dict = json.loads(YOUTUBE_CREDENTIALS_JSON)
-    # ✅ Added a check to give a clear error message if it's missing
-    if "refresh_token" not in creds_dict:
-        raise KeyError("refresh_token is missing from YOUTUBE_CREDENTIALS. Please re-authorize with access_type='offline' and update the secret.")
-
     creds = google.oauth2.credentials.Credentials(
         token=None,
         refresh_token=creds_dict["refresh_token"],
@@ -165,7 +178,7 @@ def upload_to_youtube(video_file_path, title, description):
         "snippet": {
             "title": title,
             "description": description,
-            "tags": ["stoicism", "narcissism", "mindset", "shorts"],
+            "tags": ["stoicism", "narcissism", "mindset", "shorts", "darkpsychology"],
             "categoryId": "27",
         },
         "status": {"privacyStatus": "public", "selfDeclaredMadeForKids": False},

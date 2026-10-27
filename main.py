@@ -27,7 +27,7 @@ YOUTUBE_CREDENTIALS_JSON = os.environ.get("YOUTUBE_CREDENTIALS")
 client = genai.Client(api_key=GEMINI_API_KEY)
 
 # ============================================================
-# 1. GENERATE CONTENT (With Auto-Fix Hook Logic)
+# 1. GENERATE CONTENT
 # ============================================================
 def generate_content():
     prompt = (
@@ -49,7 +49,6 @@ def generate_content():
             response = client.models.generate_content(model="gemini-3.6-flash", contents=prompt)
             raw_text = response.text.strip()
             
-            # --- AUTO-FIX LOGIC: Siguraduhing malakas ang umpisa ---
             lines = raw_text.split('\n')
             script_line = [l for l in lines if l.lower().startswith("script:")]
             if script_line:
@@ -57,7 +56,6 @@ def generate_content():
                 weak_starts = ["stop forgiving", "you need to", "it is important", "we should"]
                 if any(script.lower().startswith(w) for w in weak_starts):
                     print("[Auto-Fix] Mahinang hook na-detect. Pinalalakas...")
-                    # Kung mahina, palitan natin ng mas matinding hook
                     new_script = f"Most people think they can defeat a narcissist with logic. That's their biggest mistake. {script}"
                     raw_text = raw_text.replace(script, new_script)
             
@@ -123,7 +121,7 @@ def download_stock_video(query="marble statue rain dark cinematic"):
     raise RuntimeError("Nabigo ang lahat ng attempts na mag-download ng valid na video.")
 
 # ============================================================
-# 3. GENERATE VOICEOVER (Mas Mabagal na Boses)
+# 3. GENERATE VOICEOVER
 # ============================================================
 async def generate_voiceover_with_timings(text, output_path="voiceover.mp3"):
     voice = "en-US-AndrewNeural"
@@ -131,7 +129,6 @@ async def generate_voiceover_with_timings(text, output_path="voiceover.mp3"):
     
     for attempt in range(max_retries):
         try:
-            # Binaba natin sa -15% para maging mas malumanay at malinaw
             communicate = edge_tts.Communicate(text, voice, rate="-15%", pitch="-2Hz")
             timings = []
             with open(output_path, "wb") as f:
@@ -152,13 +149,13 @@ async def generate_voiceover_with_timings(text, output_path="voiceover.mp3"):
             await asyncio.sleep(5)
 
 # ============================================================
-# 4. KARAOKE CAPTIONS (Centered, No Overlap)
+# 4. KARAOKE CAPTIONS (Dynamic Wrapping & Auto-Fit)
 # ============================================================
 def create_karaoke_captions(word_timings, script_text, total_duration, video_size, font_path, max_words_per_line=3):
     clips = []
     stroke_width = 4
     max_width = int(video_size[0] * 0.85)
-    base_font_size = 80
+    base_font_size = 75
     
     if not word_timings:
         words = script_text.split()
@@ -178,40 +175,79 @@ def create_karaoke_captions(word_timings, script_text, total_duration, video_siz
             draw = ImageDraw.Draw(img)
             
             font_size = base_font_size
-            total_text_width = 9999
-            while total_text_width > max_width and font_size > 20:
+            font = ImageFont.load_default()
+            
+            # --- DYNAMIC WORD WRAPPING ---
+            while font_size > 20:
                 try: font = ImageFont.truetype(font_path, font_size)
-                except: font = ImageFont.load_default(); break
-                test_text = " ".join(w["word"] for w in group)
-                bbox = draw.textbbox((0, 0), test_text, font=font)
-                total_text_width = bbox[2] - bbox[0]
-                if total_text_width > max_width:
-                    font_size -= 5
-
+                except: pass
+                
+                # Hatiin ang text sa dalawang linya kung hindi kasya
+                words_in_group = [w["word"] for w in group]
+                text_line1 = " ".join(words_in_group)
+                text_line2 = ""
+                
+                bbox1 = draw.textbbox((0, 0), text_line1, font=font)
+                if (bbox1[2] - bbox1[0]) > max_width and len(words_in_group) > 1:
+                    # Kung sobrang haba, hatiin sa dalawa
+                    mid = len(words_in_group) // 2
+                    text_line1 = " ".join(words_in_group[:mid])
+                    text_line2 = " ".join(words_in_group[mid:])
+                    bbox1 = draw.textbbox((0, 0), text_line1, font=font)
+                    bbox2 = draw.textbbox((0, 0), text_line2, font=font)
+                    if (bbox1[2] - bbox1[0]) <= max_width and (bbox2[2] - bbox2[0]) <= max_width:
+                        break
+                elif (bbox1[2] - bbox1[0]) <= max_width:
+                    break
+                font_size -= 5
+            
             try: pop_font = ImageFont.truetype(font_path, font_size + 10)
             except: pop_font = font
             
-            total_text = " ".join(w["word"] for w in group)
-            bbox = draw.textbbox((0, 0), total_text, font=font)
-            start_x = (video_size[0] - (bbox[2] - bbox[0])) // 2
-            # Inusog natin pataas ng konti (mula -50 naging -100) para may espasyo sa ilalim
-            y_pos = video_size[1] // 2 - 100
+            # Center the text block
+            lines = [text_line1]
+            if text_line2: lines.append(text_line2)
             
-            current_x = start_x
-            for k, w in enumerate(group):
-                word_text = w["word"] + (" " if k < len(group) - 1 else "")
-                color = (255, 214, 10) if k == j else (255, 255, 255)
-                current_font = pop_font if k == j else font
-                current_y = y_pos - (10 if k == j else 0)
+            line_heights = []
+            total_height = 0
+            for line in lines:
+                bbox = draw.textbbox((0, 0), line, font=font)
+                h = bbox[3] - bbox[1] + 15
+                line_heights.append(h)
+                total_height += h
+            
+            y_pos = (video_size[1] - total_height) // 2 - 20
+            
+            word_index = 0
+            for line_idx, line_text in enumerate(lines):
+                bbox = draw.textbbox((0, 0), line_text, font=font)
+                line_width = bbox[2] - bbox[0]
+                x_pos = (video_size[0] - line_width) // 2
                 
-                for dx in [-stroke_width, 0, stroke_width]:
-                    for dy in [-stroke_width, 0, stroke_width]:
-                        draw.text((current_x + dx, current_y + dy), word_text, font=current_font, fill=(0, 0, 0, 255))
+                words_in_this_line = line_text.split()
+                current_x = x_pos
                 
-                draw.text((current_x, current_y), word_text, font=current_font, fill=color + (255,))
+                for w_text in words_in_this_line:
+                    # Hanapin ang tamang word object
+                    while word_index < len(group) and group[word_index]["word"] != w_text:
+                        word_index += 1
+                    
+                    is_active = (word_index == j)
+                    color = (255, 214, 10) if is_active else (255, 255, 255)
+                    current_font = pop_font if is_active else font
+                    y_offset = -5 if is_active else 0
+                    
+                    for dx in [-stroke_width, 0, stroke_width]:
+                        for dy in [-stroke_width, 0, stroke_width]:
+                            draw.text((current_x + dx, y_pos + y_offset + dy), w_text, font=current_font, fill=(0, 0, 0, 255))
+                    
+                    draw.text((current_x, y_pos + y_offset), w_text, font=current_font, fill=color + (255,))
+                    
+                    bbox_w = draw.textbbox((0, 0), w_text, font=font)
+                    current_x += bbox_w[2] - bbox_w[0] + 10 # Space between words
+                    word_index += 1
                 
-                bbox_w = draw.textbbox((0, 0), word_text, font=font)
-                current_x += bbox_w[2] - bbox_w[0]
+                y_pos += line_heights[line_idx]
             
             frame = np.array(img)
             clip = ImageClip(frame).with_start(word_start).with_duration(word_end - word_start)
@@ -220,7 +256,7 @@ def create_karaoke_captions(word_timings, script_text, total_duration, video_siz
     return clips
 
 # ============================================================
-# 5. CREATE VIDEO (Fixed End-Card Size and Position)
+# 5. CREATE VIDEO
 # ============================================================
 def create_video(script_text, output_path="final_output.mp4"):
     print("[Video] Downloading background...")
@@ -256,20 +292,18 @@ def create_video(script_text, output_path="final_output.mp4"):
     font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
     caption_clips = create_karaoke_captions(word_timings, script_text, duration, clip.size, font_path)
 
-    # --- FIXED END CARD (Mas Maliit at Nasa Ilalim) ---
+    # --- END CARD CTA (Pinaikli at Pinaliit) ---
     end_card_img = Image.new("RGBA", clip.size, (0, 0, 0, 0))
     draw_end = ImageDraw.Draw(end_card_img)
     try:
-        # Binaba natin ang font size sa 28 para hindi umabot sa karaoke text
-        end_font = ImageFont.truetype(font_path, 28)
+        end_font = ImageFont.truetype(font_path, 32) # Pinaliit from 45 to 32
     except:
         end_font = ImageFont.load_default()
     
-    end_text = "Watch the full breakdown on my channel"
+    end_text = "Full breakdown on my channel" # Pinaikli ang text
     bbox = draw_end.textbbox((0, 0), end_text, font=end_font)
     x_pos = (clip.size[0] - (bbox[2] - bbox[0])) // 2
-    # Inilagay natin sa pinakababa (30px mula sa ilalim)
-    y_pos = clip.size[1] - 80
+    y_pos = clip.size[1] - 100 # Inusog pataas ng konti para hindi tabingi
     
     for dx in [-2, 0, 2]:
         for dy in [-2, 0, 2]:

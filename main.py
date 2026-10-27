@@ -149,13 +149,13 @@ async def generate_voiceover_with_timings(text, output_path="voiceover.mp3"):
             await asyncio.sleep(5)
 
 # ============================================================
-# 4. KARAOKE CAPTIONS (Strict Fit & Wrapping)
+# 4. KARAOKE CAPTIONS (Kinetic Bounce & Fade Effect)
 # ============================================================
 def create_karaoke_captions(word_timings, script_text, total_duration, video_size, font_path, max_words_per_line=3):
     clips = []
     stroke_width = 4
-    max_width = int(video_size[0] * 0.85) # 85% lang ng screen para may margin
-    base_font_size = 75
+    max_width = int(video_size[0] * 0.85)
+    base_font_size = 80
     
     if not word_timings:
         words = script_text.split()
@@ -174,23 +174,26 @@ def create_karaoke_captions(word_timings, script_text, total_duration, video_siz
             img = Image.new("RGBA", video_size, (0, 0, 0, 0))
             draw = ImageDraw.Draw(img)
             
-            # Dynamic Font Sizing (Bababa ang font size kung hindi kasya sa 85% width)
+            # Fit logic
             font_size = base_font_size
             font = ImageFont.load_default()
             while font_size > 20:
                 try: font = ImageFont.truetype(font_path, font_size)
                 except: pass
-                
                 test_text = " ".join(w["word"] for w in group)
                 bbox = draw.textbbox((0, 0), test_text, font=font)
                 if (bbox[2] - bbox[0]) <= max_width:
                     break
                 font_size -= 5
             
-            try: pop_font = ImageFont.truetype(font_path, font_size + 10)
-            except: pop_font = font
+            # Kinetic Fonts: Active is bigger, Inactive is smaller
+            try: 
+                pop_font = ImageFont.truetype(font_path, font_size + 15)
+                idle_font = ImageFont.truetype(font_path, font_size - 5)
+            except: 
+                pop_font = font
+                idle_font = font
             
-            # Compute total width of the group to center it
             total_text_width = 0
             word_widths = []
             for w in group:
@@ -201,25 +204,35 @@ def create_karaoke_captions(word_timings, script_text, total_duration, video_siz
                 total_text_width += w_width
             
             start_x = (video_size[0] - total_text_width) // 2
-            # Center vertically pero medyo ibaba ng konti para hindi matabunan ng top UI
             y_pos = (video_size[1] // 2) - 50
             
             current_x = start_x
             for k, w in enumerate(group):
                 word_text = w["word"] + (" " if k < len(group) - 1 else "")
-                color = (255, 214, 10) if k == j else (255, 255, 255)
-                current_font = pop_font if k == j else font
                 
-                # Bahagyang pataas ang active word para sa "pop" effect
-                y_offset = -8 if k == j else 0
+                if k == j:
+                    # ACTIVE WORD: Yellow, Bigger, Bounce Up
+                    color = (255, 214, 10, 255)
+                    current_font = pop_font
+                    y_offset = -15
+                elif k < j:
+                    # PAST WORD: White, Faded
+                    color = (255, 255, 255, 200)
+                    current_font = idle_font
+                    y_offset = 0
+                else:
+                    # FUTURE WORD: Gray, Transparent
+                    color = (150, 150, 150, 100)
+                    current_font = idle_font
+                    y_offset = 0
                 
-                # Outline
+                # Outline (Black)
                 for dx in [-stroke_width, 0, stroke_width]:
                     for dy in [-stroke_width, 0, stroke_width]:
                         draw.text((current_x + dx, y_pos + y_offset + dy), word_text, font=current_font, fill=(0, 0, 0, 255))
                 
-                # Kulay
-                draw.text((current_x, y_pos + y_offset), word_text, font=current_font, fill=color + (255,))
+                # Text Color
+                draw.text((current_x, y_pos + y_offset), word_text, font=current_font, fill=color)
                 
                 current_x += word_widths[k]
             
@@ -275,7 +288,6 @@ def create_video(script_text, output_path="final_output.mp4"):
     try: hook_font = ImageFont.truetype(font_path, 90)
     except: hook_font = ImageFont.load_default()
     
-    # Hook Text Wrapping
     hook_lines = []
     current_line = ""
     for word in hook_text.split():

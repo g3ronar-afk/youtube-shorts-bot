@@ -27,7 +27,7 @@ YOUTUBE_CREDENTIALS_JSON = os.environ.get("YOUTUBE_CREDENTIALS")
 client = genai.Client(api_key=GEMINI_API_KEY)
 
 # ============================================================
-# 1. GENERATE CONTENT (VIRAL HOOK + SEO)
+# 1. GENERATE CONTENT
 # ============================================================
 def generate_content():
     prompt = (
@@ -129,13 +129,27 @@ async def generate_voiceover_with_timings(text, output_path="voiceover.mp3"):
             await asyncio.sleep(5)
 
 # ============================================================
-# 4. KARAOKE CAPTIONS (Word-by-word)
+# 4. KARAOKE CAPTIONS (WITH SMART FALLBACK)
 # ============================================================
-def create_karaoke_captions(word_timings, video_size, font_path, max_words_per_line=3):
+def create_karaoke_captions(word_timings, script_text, total_duration, video_size, font_path, max_words_per_line=3):
     clips = []
     font_size = 65
     stroke_width = 3
     
+    # FALLBACK: Kung walang word timings, hatiin ang oras base sa bilang ng salita
+    if not word_timings:
+        print("[Caption Warning] Walang word timings na nakuha. Gumagamit ng fallback (pantay-pantay na hati).")
+        words = script_text.split()
+        if not words:
+            return []
+        
+        time_per_word = total_duration / len(words)
+        word_timings = []
+        for i, word in enumerate(words):
+            start = i * time_per_word
+            end = start + time_per_word
+            word_timings.append({"word": word, "start": start, "end": end})
+
     for i in range(0, len(word_timings), max_words_per_line):
         group = word_timings[i:i + max_words_per_line]
         if not group:
@@ -179,7 +193,7 @@ def create_karaoke_captions(word_timings, video_size, font_path, max_words_per_l
     return clips
 
 # ============================================================
-# 5. CREATE VIDEO (No Hashtags on video, Clean & Cinematic)
+# 5. CREATE VIDEO
 # ============================================================
 def create_video(script_text, output_path="final_output.mp4"):
     print("[Video] Downloading background...")
@@ -209,12 +223,10 @@ def create_video(script_text, output_path="final_output.mp4"):
 
     print("[Video] Building karaoke captions...")
     font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
-    caption_clips = create_karaoke_captions(word_timings, clip.size, font_path)
+    caption_clips = create_karaoke_captions(word_timings, script_text, duration, clip.size, font_path)
 
-    if caption_clips:
-        final_clip = CompositeVideoClip([clip, overlay] + caption_clips)
-    else:
-        final_clip = CompositeVideoClip([clip, overlay])
+    # Kahit walang timings, siguradong may clips na mabubuo dahil sa fallback
+    final_clip = CompositeVideoClip([clip, overlay] + caption_clips)
 
     final_clip = final_clip.with_audio(voice_audio)
 
@@ -232,7 +244,7 @@ def create_video(script_text, output_path="final_output.mp4"):
     return output_path
 
 # ============================================================
-# 6. UPLOAD TO YOUTUBE (AUTO HASHTAGS IN DESCRIPTION)
+# 6. UPLOAD TO YOUTUBE
 # ============================================================
 def upload_to_youtube(video_file_path, title, description):
     creds_dict = json.loads(YOUTUBE_CREDENTIALS_JSON)
@@ -276,7 +288,6 @@ if __name__ == "__main__":
     raw = generate_content()
     title, script = parse_gemini_output(raw)
     
-    # Dito natin awtomatikong inilalagay ang mga hashtags sa description
     description = (
         f"{script}\n\n"
         f"Watch the full breakdown on my channel!\n\n"

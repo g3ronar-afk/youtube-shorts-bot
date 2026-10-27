@@ -129,31 +129,23 @@ async def generate_voiceover_with_timings(text, output_path="voiceover.mp3"):
             await asyncio.sleep(5)
 
 # ============================================================
-# 4. KARAOKE CAPTIONS (WITH SMART FALLBACK)
+# 4. KARAOKE CAPTIONS (Dynamic Auto-Fit + Pop Effect)
 # ============================================================
 def create_karaoke_captions(word_timings, script_text, total_duration, video_size, font_path, max_words_per_line=3):
     clips = []
-    font_size = 65
-    stroke_width = 3
+    stroke_width = 4
+    max_width = int(video_size[0] * 0.85)
+    base_font_size = 80
     
-    # FALLBACK: Kung walang word timings, hatiin ang oras base sa bilang ng salita
     if not word_timings:
-        print("[Caption Warning] Walang word timings na nakuha. Gumagamit ng fallback (pantay-pantay na hati).")
         words = script_text.split()
-        if not words:
-            return []
-        
+        if not words: return []
         time_per_word = total_duration / len(words)
-        word_timings = []
-        for i, word in enumerate(words):
-            start = i * time_per_word
-            end = start + time_per_word
-            word_timings.append({"word": word, "start": start, "end": end})
+        word_timings = [{"word": w, "start": i*time_per_word, "end": (i+1)*time_per_word} for i, w in enumerate(words)]
 
     for i in range(0, len(word_timings), max_words_per_line):
         group = word_timings[i:i + max_words_per_line]
-        if not group:
-            continue
+        if not group: continue
         
         for j, active_word in enumerate(group):
             word_start = active_word["start"]
@@ -162,15 +154,25 @@ def create_karaoke_captions(word_timings, script_text, total_duration, video_siz
             img = Image.new("RGBA", video_size, (0, 0, 0, 0))
             draw = ImageDraw.Draw(img)
             
-            try:
-                font = ImageFont.truetype(font_path, font_size)
-            except:
-                font = ImageFont.load_default()
+            # Fit logic
+            font_size = base_font_size
+            total_text_width = 9999
+            while total_text_width > max_width and font_size > 20:
+                try: font = ImageFont.truetype(font_path, font_size)
+                except: font = ImageFont.load_default(); break
+                test_text = " ".join(w["word"] for w in group)
+                bbox = draw.textbbox((0, 0), test_text, font=font)
+                total_text_width = bbox[2] - bbox[0]
+                if total_text_width > max_width:
+                    font_size -= 5
+
+            # Para sa Pop Effect, gagawa tayo ng mas malaking font para sa active word
+            try: pop_font = ImageFont.truetype(font_path, font_size + 10)
+            except: pop_font = font
             
             total_text = " ".join(w["word"] for w in group)
             bbox = draw.textbbox((0, 0), total_text, font=font)
-            total_width = bbox[2] - bbox[0]
-            start_x = (video_size[0] - total_width) // 2
+            start_x = (video_size[0] - (bbox[2] - bbox[0])) // 2
             y_pos = video_size[1] // 2 - 50
             
             current_x = start_x
@@ -178,11 +180,21 @@ def create_karaoke_captions(word_timings, script_text, total_duration, video_siz
                 word_text = w["word"] + (" " if k < len(group) - 1 else "")
                 color = (255, 214, 10) if k == j else (255, 255, 255)
                 
+                # Gumamit ng pop_font kung ito ang active, regular font kung hindi
+                current_font = pop_font if k == j else font
+                
+                # Adjust Y para hindi tumalbog pataas ang pop effect (center align)
+                current_y = y_pos - (10 if k == j else 0)
+                
+                # Outline
                 for dx in [-stroke_width, 0, stroke_width]:
                     for dy in [-stroke_width, 0, stroke_width]:
-                        draw.text((current_x + dx, y_pos + dy), word_text, font=font, fill=(0, 0, 0, 255))
+                        draw.text((current_x + dx, current_y + dy), word_text, font=current_font, fill=(0, 0, 0, 255))
                 
-                draw.text((current_x, y_pos), word_text, font=font, fill=color + (255,))
+                # Kulay ng text
+                draw.text((current_x, current_y), word_text, font=current_font, fill=color + (255,))
+                
+                # Sukatin ang lapad base sa regular font para hindi gumalaw ang layout
                 bbox_w = draw.textbbox((0, 0), word_text, font=font)
                 current_x += bbox_w[2] - bbox_w[0]
             
@@ -193,13 +205,13 @@ def create_karaoke_captions(word_timings, script_text, total_duration, video_siz
     return clips
 
 # ============================================================
-# 5. CREATE VIDEO
+# 5. CREATE VIDEO (With Progress Bar & Cinematic Look)
 # ============================================================
 def create_video(script_text, output_path="final_output.mp4"):
     print("[Video] Downloading background...")
     bg_path = download_stock_video()
     
-    print("[Video] Generating voiceover with word timings...")
+    print("[Video] Generating voiceover...")
     voice_path, word_timings = asyncio.run(generate_voiceover_with_timings(script_text))
 
     print("[Video] Editing...")
@@ -218,16 +230,23 @@ def create_video(script_text, output_path="final_output.mp4"):
         x2 = min(w, x1 + new_w)
         clip = clip.cropped(x1=x1, y1=0, x2=x2, y2=h)
 
-    clip = clip.with_effects([vfx.Resize(lambda t: 1 + 0.18 * (t / duration))])
-    overlay = ColorClip(size=clip.size, color=(0, 0, 0)).with_opacity(0.5).with_duration(duration)
+    # 1. Subtle Handheld Shake at Ken Burns
+    clip = clip.with_effects([vfx.Resize(lambda t: 1 + 0.18 * (t / duration) + random.uniform(-0.005, 0.005))])
+
+    # 2. Dark Overlay + Teal Tint
+    overlay = ColorClip(size=clip.size, color=(5, 15, 25)).with_opacity(0.6).with_duration(duration) # Medyo maberde/teal
+
+    # 3. Progress Bar
+    progress_bar = ColorClip(size=(clip.w, 8), color=(255, 0, 0)).with_duration(duration)
+    # Awtomatikong dumadami ang lapad base sa oras
+    progress_bar = progress_bar.with_effects([vfx.Resize(lambda t: (clip.w * (t / duration) + 1, 8))])
+    progress_bar = progress_bar.with_position(("left", "bottom"))
 
     print("[Video] Building karaoke captions...")
     font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
     caption_clips = create_karaoke_captions(word_timings, script_text, duration, clip.size, font_path)
 
-    # Kahit walang timings, siguradong may clips na mabubuo dahil sa fallback
-    final_clip = CompositeVideoClip([clip, overlay] + caption_clips)
-
+    final_clip = CompositeVideoClip([clip, overlay] + caption_clips + [progress_bar])
     final_clip = final_clip.with_audio(voice_audio)
 
     final_clip.write_videofile(

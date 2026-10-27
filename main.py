@@ -27,7 +27,7 @@ YOUTUBE_CREDENTIALS_JSON = os.environ.get("YOUTUBE_CREDENTIALS")
 client = genai.Client(api_key=GEMINI_API_KEY)
 
 # ============================================================
-# 1. GENERATE CONTENT (The "Narcissist Hate" Pattern)
+# 1. GENERATE CONTENT
 # ============================================================
 def generate_content():
     prompt = (
@@ -49,7 +49,6 @@ def generate_content():
             response = client.models.generate_content(model="gemini-3.6-flash", contents=prompt)
             raw_text = response.text.strip()
             
-            # Auto-Fix Hook Logic
             lines = raw_text.split('\n')
             script_line = [l for l in lines if l.lower().startswith("script:")]
             if script_line:
@@ -149,13 +148,13 @@ async def generate_voiceover_with_timings(text, output_path="voiceover.mp3"):
             await asyncio.sleep(5)
 
 # ============================================================
-# 4. KARAOKE CAPTIONS (Kinetic Bounce & Fade Effect)
+# 4. KARAOKE CAPTIONS (Fade & No Overlap)
 # ============================================================
-def create_karaoke_captions(word_timings, script_text, total_duration, video_size, font_path, max_words_per_line=3):
+def create_karaoke_captions(word_timings, script_text, total_duration, video_size, font_path, max_words_per_line=2):
     clips = []
-    stroke_width = 4
+    stroke_width = 5
     max_width = int(video_size[0] * 0.85)
-    base_font_size = 80
+    base_font_size = 75
     
     if not word_timings:
         words = script_text.split()
@@ -163,6 +162,7 @@ def create_karaoke_captions(word_timings, script_text, total_duration, video_siz
         time_per_word = total_duration / len(words)
         word_timings = [{"word": w, "start": i*time_per_word, "end": (i+1)*time_per_word} for i, w in enumerate(words)]
 
+    # Dalawang salita lang per line para siguradong hindi mag-ooverlap at kasya sa screen
     for i in range(0, len(word_timings), max_words_per_line):
         group = word_timings[i:i + max_words_per_line]
         if not group: continue
@@ -174,7 +174,7 @@ def create_karaoke_captions(word_timings, script_text, total_duration, video_siz
             img = Image.new("RGBA", video_size, (0, 0, 0, 0))
             draw = ImageDraw.Draw(img)
             
-            # Fit logic
+            # Dynamic Fit
             font_size = base_font_size
             font = ImageFont.load_default()
             while font_size > 20:
@@ -186,14 +186,7 @@ def create_karaoke_captions(word_timings, script_text, total_duration, video_siz
                     break
                 font_size -= 5
             
-            # Kinetic Fonts: Active is bigger, Inactive is smaller
-            try: 
-                pop_font = ImageFont.truetype(font_path, font_size + 15)
-                idle_font = ImageFont.truetype(font_path, font_size - 5)
-            except: 
-                pop_font = font
-                idle_font = font
-            
+            # Pare-pareho ang font size para walang overlap
             total_text_width = 0
             word_widths = []
             for w in group:
@@ -211,28 +204,22 @@ def create_karaoke_captions(word_timings, script_text, total_duration, video_siz
                 word_text = w["word"] + (" " if k < len(group) - 1 else "")
                 
                 if k == j:
-                    # ACTIVE WORD: Yellow, Bigger, Bounce Up
+                    # ACTIVE: Dilaw, Buong Opacity
                     color = (255, 214, 10, 255)
-                    current_font = pop_font
-                    y_offset = -15
                 elif k < j:
-                    # PAST WORD: White, Faded
+                    # PAST: Puti, Bahagyang Faded
                     color = (255, 255, 255, 200)
-                    current_font = idle_font
-                    y_offset = 0
                 else:
-                    # FUTURE WORD: Gray, Transparent
+                    # FUTURE: Gray, Faded
                     color = (150, 150, 150, 100)
-                    current_font = idle_font
-                    y_offset = 0
                 
-                # Outline (Black)
+                # Outline (Itim)
                 for dx in [-stroke_width, 0, stroke_width]:
                     for dy in [-stroke_width, 0, stroke_width]:
-                        draw.text((current_x + dx, y_pos + y_offset + dy), word_text, font=current_font, fill=(0, 0, 0, 255))
+                        draw.text((current_x + dx, y_pos + dy), word_text, font=font, fill=(0, 0, 0, 255))
                 
-                # Text Color
-                draw.text((current_x, y_pos + y_offset), word_text, font=current_font, fill=color)
+                # Kulay ng text
+                draw.text((current_x, y_pos), word_text, font=font, fill=color)
                 
                 current_x += word_widths[k]
             
@@ -313,16 +300,16 @@ def create_video(script_text, output_path="final_output.mp4"):
     
     hook_clip = ImageClip(np.array(hook_img)).with_start(0).with_duration(2.5)
 
-    # --- END CARD CTA ---
+    # --- END CARD CTA (Pinaikli at Pinaliit) ---
     end_card_img = Image.new("RGBA", clip.size, (0, 0, 0, 0))
     draw_end = ImageDraw.Draw(end_card_img)
-    try: end_font = ImageFont.truetype(font_path, 32)
+    try: end_font = ImageFont.truetype(font_path, 30) # Maliit lang para hindi lumampas
     except: end_font = ImageFont.load_default()
     
     end_text = "Full breakdown on my channel"
     bbox = draw_end.textbbox((0, 0), end_text, font=end_font)
     x_pos = (clip.size[0] - (bbox[2] - bbox[0])) // 2
-    y_pos = clip.size[1] - 100
+    y_pos = clip.size[1] - 90 # Ilalim pero may margin
     
     for dx in [-2, 0, 2]:
         for dy in [-2, 0, 2]:

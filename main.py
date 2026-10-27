@@ -27,19 +27,19 @@ YOUTUBE_CREDENTIALS_JSON = os.environ.get("YOUTUBE_CREDENTIALS")
 client = genai.Client(api_key=GEMINI_API_KEY)
 
 # ============================================================
-# 1. GENERATE CONTENT
+# 1. GENERATE CONTENT (The "Narcissist Hate" Pattern)
 # ============================================================
 def generate_content():
     prompt = (
-        "You are a master of Stoic philosophy and dark psychology writing for a US audience. "
-        "Write a 20-second YouTube Short script in STRICTLY ENGLISH about narcissistic manipulation or Stoic resilience. "
-        "HOOK RULE (first sentence): Use a BOLD CLAIM that confronts the viewer's behavior. "
-        "Examples: 'Most people try to defeat a narcissist through arguments. That's exactly what they want.' "
-        "'The reason you keep attracting narcissists isn't bad luck. It's this.' "
-        "'Stop explaining yourself to a narcissist. They already know. They just don't care.' "
+        "You are a Stoic philosopher writing for a US audience. "
+        "Write a 20-second YouTube Short script in STRICTLY ENGLISH about narcissistic manipulation. "
+        "TITLE RULE: Start the title with 'Narcissists hate when you...' or 'Stop [doing this] to a narcissist'. "
+        "SCRIPT HOOK RULE (first sentence): Use a BOLD CLAIM that validates the viewer's pain. "
+        "Examples: 'When you finally stop explaining yourself, you take away their power.' "
+        "'They feed on your confusion. Silence starves them.' "
         "STRUCTURE: Hook (bold claim) + One sharp insight + End with a final statement (no CTA in script). "
         "Keep it 18-22 words total. DO NOT use Tagalog. English only. "
-        "Format:\nTitle: [Keyword]: [Hook]\nScript: [The message]"
+        "Format:\nTitle: [Title]\nScript: [The message]"
     )
     
     max_retries = 5
@@ -49,14 +49,14 @@ def generate_content():
             response = client.models.generate_content(model="gemini-3.6-flash", contents=prompt)
             raw_text = response.text.strip()
             
+            # Auto-Fix Hook Logic
             lines = raw_text.split('\n')
             script_line = [l for l in lines if l.lower().startswith("script:")]
             if script_line:
                 script = script_line[0].split(":", 1)[1].strip()
                 weak_starts = ["stop forgiving", "you need to", "it is important", "we should"]
                 if any(script.lower().startswith(w) for w in weak_starts):
-                    print("[Auto-Fix] Mahinang hook na-detect. Pinalalakas...")
-                    new_script = f"Most people think they can defeat a narcissist with logic. That's their biggest mistake. {script}"
+                    new_script = f"Most people try to defeat a narcissist through arguments. That's exactly what they want. {script}"
                     raw_text = raw_text.replace(script, new_script)
             
             return raw_text
@@ -70,7 +70,7 @@ def generate_content():
                 raise
 
 def parse_gemini_output(raw_text):
-    title = "Narcissist Manipulation: The Trap You Don't See"
+    title = "Narcissists hate when you set boundaries"
     script = raw_text
     for line in raw_text.splitlines():
         line = line.strip()
@@ -80,7 +80,7 @@ def parse_gemini_output(raw_text):
             script = line.split(":", 1)[1].strip()
     
     if "narcissist" not in title.lower() and "stoic" not in title.lower():
-        title = f"Narcissist Manipulation: {title}"
+        title = f"Narcissists hate this: {title}"
     
     if "#shorts" not in title.lower():
         title = f"{title} #Shorts"
@@ -149,12 +149,12 @@ async def generate_voiceover_with_timings(text, output_path="voiceover.mp3"):
             await asyncio.sleep(5)
 
 # ============================================================
-# 4. KARAOKE CAPTIONS (Dynamic Wrapping & Auto-Fit)
+# 4. KARAOKE CAPTIONS (Strict Fit & Wrapping)
 # ============================================================
 def create_karaoke_captions(word_timings, script_text, total_duration, video_size, font_path, max_words_per_line=3):
     clips = []
     stroke_width = 4
-    max_width = int(video_size[0] * 0.85)
+    max_width = int(video_size[0] * 0.85) # 85% lang ng screen para may margin
     base_font_size = 75
     
     if not word_timings:
@@ -174,80 +174,54 @@ def create_karaoke_captions(word_timings, script_text, total_duration, video_siz
             img = Image.new("RGBA", video_size, (0, 0, 0, 0))
             draw = ImageDraw.Draw(img)
             
+            # Dynamic Font Sizing (Bababa ang font size kung hindi kasya sa 85% width)
             font_size = base_font_size
             font = ImageFont.load_default()
-            
-            # --- DYNAMIC WORD WRAPPING ---
             while font_size > 20:
                 try: font = ImageFont.truetype(font_path, font_size)
                 except: pass
                 
-                # Hatiin ang text sa dalawang linya kung hindi kasya
-                words_in_group = [w["word"] for w in group]
-                text_line1 = " ".join(words_in_group)
-                text_line2 = ""
-                
-                bbox1 = draw.textbbox((0, 0), text_line1, font=font)
-                if (bbox1[2] - bbox1[0]) > max_width and len(words_in_group) > 1:
-                    # Kung sobrang haba, hatiin sa dalawa
-                    mid = len(words_in_group) // 2
-                    text_line1 = " ".join(words_in_group[:mid])
-                    text_line2 = " ".join(words_in_group[mid:])
-                    bbox1 = draw.textbbox((0, 0), text_line1, font=font)
-                    bbox2 = draw.textbbox((0, 0), text_line2, font=font)
-                    if (bbox1[2] - bbox1[0]) <= max_width and (bbox2[2] - bbox2[0]) <= max_width:
-                        break
-                elif (bbox1[2] - bbox1[0]) <= max_width:
+                test_text = " ".join(w["word"] for w in group)
+                bbox = draw.textbbox((0, 0), test_text, font=font)
+                if (bbox[2] - bbox[0]) <= max_width:
                     break
                 font_size -= 5
             
             try: pop_font = ImageFont.truetype(font_path, font_size + 10)
             except: pop_font = font
             
-            # Center the text block
-            lines = [text_line1]
-            if text_line2: lines.append(text_line2)
+            # Compute total width of the group to center it
+            total_text_width = 0
+            word_widths = []
+            for w in group:
+                w_text = w["word"] + " "
+                bbox_w = draw.textbbox((0, 0), w_text, font=font)
+                w_width = bbox_w[2] - bbox_w[0]
+                word_widths.append(w_width)
+                total_text_width += w_width
             
-            line_heights = []
-            total_height = 0
-            for line in lines:
-                bbox = draw.textbbox((0, 0), line, font=font)
-                h = bbox[3] - bbox[1] + 15
-                line_heights.append(h)
-                total_height += h
+            start_x = (video_size[0] - total_text_width) // 2
+            # Center vertically pero medyo ibaba ng konti para hindi matabunan ng top UI
+            y_pos = (video_size[1] // 2) - 50
             
-            y_pos = (video_size[1] - total_height) // 2 - 20
-            
-            word_index = 0
-            for line_idx, line_text in enumerate(lines):
-                bbox = draw.textbbox((0, 0), line_text, font=font)
-                line_width = bbox[2] - bbox[0]
-                x_pos = (video_size[0] - line_width) // 2
+            current_x = start_x
+            for k, w in enumerate(group):
+                word_text = w["word"] + (" " if k < len(group) - 1 else "")
+                color = (255, 214, 10) if k == j else (255, 255, 255)
+                current_font = pop_font if k == j else font
                 
-                words_in_this_line = line_text.split()
-                current_x = x_pos
+                # Bahagyang pataas ang active word para sa "pop" effect
+                y_offset = -8 if k == j else 0
                 
-                for w_text in words_in_this_line:
-                    # Hanapin ang tamang word object
-                    while word_index < len(group) and group[word_index]["word"] != w_text:
-                        word_index += 1
-                    
-                    is_active = (word_index == j)
-                    color = (255, 214, 10) if is_active else (255, 255, 255)
-                    current_font = pop_font if is_active else font
-                    y_offset = -5 if is_active else 0
-                    
-                    for dx in [-stroke_width, 0, stroke_width]:
-                        for dy in [-stroke_width, 0, stroke_width]:
-                            draw.text((current_x + dx, y_pos + y_offset + dy), w_text, font=current_font, fill=(0, 0, 0, 255))
-                    
-                    draw.text((current_x, y_pos + y_offset), w_text, font=current_font, fill=color + (255,))
-                    
-                    bbox_w = draw.textbbox((0, 0), w_text, font=font)
-                    current_x += bbox_w[2] - bbox_w[0] + 10 # Space between words
-                    word_index += 1
+                # Outline
+                for dx in [-stroke_width, 0, stroke_width]:
+                    for dy in [-stroke_width, 0, stroke_width]:
+                        draw.text((current_x + dx, y_pos + y_offset + dy), word_text, font=current_font, fill=(0, 0, 0, 255))
                 
-                y_pos += line_heights[line_idx]
+                # Kulay
+                draw.text((current_x, y_pos + y_offset), word_text, font=current_font, fill=color + (255,))
+                
+                current_x += word_widths[k]
             
             frame = np.array(img)
             clip = ImageClip(frame).with_start(word_start).with_duration(word_end - word_start)
@@ -292,18 +266,51 @@ def create_video(script_text, output_path="final_output.mp4"):
     font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
     caption_clips = create_karaoke_captions(word_timings, script_text, duration, clip.size, font_path)
 
-    # --- END CARD CTA (Pinaikli at Pinaliit) ---
+    # --- GIANT HOOK TEXT (Unang 2.5 Segundo) ---
+    words = script_text.split()
+    hook_text = " ".join(words[:5]) + "..." 
+    
+    hook_img = Image.new("RGBA", clip.size, (0, 0, 0, 0))
+    draw_hook = ImageDraw.Draw(hook_img)
+    try: hook_font = ImageFont.truetype(font_path, 90)
+    except: hook_font = ImageFont.load_default()
+    
+    # Hook Text Wrapping
+    hook_lines = []
+    current_line = ""
+    for word in hook_text.split():
+        test_line = current_line + word + " "
+        bbox = draw_hook.textbbox((0, 0), test_line, font=hook_font)
+        if bbox[2] - bbox[0] <= clip.w * 0.9:
+            current_line = test_line
+        else:
+            if current_line: hook_lines.append(current_line.strip())
+            current_line = word + " "
+    if current_line: hook_lines.append(current_line.strip())
+
+    total_h = len(hook_lines) * 110
+    y_hook = (clip.h - total_h) // 2
+    for line in hook_lines:
+        bbox = draw_hook.textbbox((0, 0), line, font=hook_font)
+        x_hook = (clip.w - (bbox[2] - bbox[0])) // 2
+        for dx in [-5, 0, 5]:
+            for dy in [-5, 0, 5]:
+                draw_hook.text((x_hook + dx, y_hook + dy), line, font=hook_font, fill=(0, 0, 0, 255))
+        draw_hook.text((x_hook, y_hook), line, font=hook_font, fill=(255, 255, 255, 255))
+        y_hook += 110
+    
+    hook_clip = ImageClip(np.array(hook_img)).with_start(0).with_duration(2.5)
+
+    # --- END CARD CTA ---
     end_card_img = Image.new("RGBA", clip.size, (0, 0, 0, 0))
     draw_end = ImageDraw.Draw(end_card_img)
-    try:
-        end_font = ImageFont.truetype(font_path, 32) # Pinaliit from 45 to 32
-    except:
-        end_font = ImageFont.load_default()
+    try: end_font = ImageFont.truetype(font_path, 32)
+    except: end_font = ImageFont.load_default()
     
-    end_text = "Full breakdown on my channel" # Pinaikli ang text
+    end_text = "Full breakdown on my channel"
     bbox = draw_end.textbbox((0, 0), end_text, font=end_font)
     x_pos = (clip.size[0] - (bbox[2] - bbox[0])) // 2
-    y_pos = clip.size[1] - 100 # Inusog pataas ng konti para hindi tabingi
+    y_pos = clip.size[1] - 100
     
     for dx in [-2, 0, 2]:
         for dy in [-2, 0, 2]:
@@ -312,7 +319,7 @@ def create_video(script_text, output_path="final_output.mp4"):
     
     end_card_clip = ImageClip(np.array(end_card_img)).with_start(duration - 3.0).with_duration(3.0)
 
-    final_clip = CompositeVideoClip([clip, overlay] + caption_clips + [progress_bar, end_card_clip])
+    final_clip = CompositeVideoClip([clip, overlay, hook_clip] + caption_clips + [progress_bar, end_card_clip])
     final_clip = final_clip.with_audio(voice_audio)
 
     final_clip.write_videofile(

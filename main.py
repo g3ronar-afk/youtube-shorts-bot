@@ -27,11 +27,11 @@ YOUTUBE_CREDENTIALS_JSON = os.environ.get("YOUTUBE_CREDENTIALS")
 client = genai.Client(api_key=GEMINI_API_KEY)
 
 # ============================================================
-# 1. GENERATE CONTENT (Pattern: Bold Claim + Specific Enemy)
+# 1. GENERATE CONTENT (With Auto-Fix Hook Logic)
 # ============================================================
 def generate_content():
     prompt = (
-        "You are a Stoic philosopher and dark psychology expert writing for a US audience. "
+        "You are a master of Stoic philosophy and dark psychology writing for a US audience. "
         "Write a 20-second YouTube Short script in STRICTLY ENGLISH about narcissistic manipulation or Stoic resilience. "
         "HOOK RULE (first sentence): Use a BOLD CLAIM that confronts the viewer's behavior. "
         "Examples: 'Most people try to defeat a narcissist through arguments. That's exactly what they want.' "
@@ -47,7 +47,21 @@ def generate_content():
     for attempt in range(max_retries):
         try:
             response = client.models.generate_content(model="gemini-3.6-flash", contents=prompt)
-            return response.text.strip()
+            raw_text = response.text.strip()
+            
+            # --- AUTO-FIX LOGIC: Siguraduhing malakas ang umpisa ---
+            lines = raw_text.split('\n')
+            script_line = [l for l in lines if l.lower().startswith("script:")]
+            if script_line:
+                script = script_line[0].split(":", 1)[1].strip()
+                weak_starts = ["stop forgiving", "you need to", "it is important", "we should"]
+                if any(script.lower().startswith(w) for w in weak_starts):
+                    print("[Auto-Fix] Mahinang hook na-detect. Pinalalakas...")
+                    # Kung mahina, palitan natin ng mas matinding hook
+                    new_script = f"Most people think they can defeat a narcissist with logic. That's their biggest mistake. {script}"
+                    raw_text = raw_text.replace(script, new_script)
+            
+            return raw_text
         except genai_errors.APIError as e:
             if e.code in [503, 429]:
                 if attempt == max_retries - 1:
@@ -75,7 +89,7 @@ def parse_gemini_output(raw_text):
     return title[:100], script
 
 # ============================================================
-# 2. DOWNLOAD STOCK VIDEO (Statue + Rain = Visual Signature)
+# 2. DOWNLOAD STOCK VIDEO
 # ============================================================
 def download_stock_video(query="marble statue rain dark cinematic"):
     url = f"https://pixabay.com/api/videos/?key={PIXABAY_API_KEY}&q={query}&per_page=20&safesearch=true"
@@ -83,7 +97,6 @@ def download_stock_video(query="marble statue rain dark cinematic"):
     resp.raise_for_status()
     hits = resp.json().get("hits", [])
     if not hits:
-        # Fallback sa dark cinematic kung walang statue
         query = "dark cinematic vertical moody"
         url = f"https://pixabay.com/api/videos/?key={PIXABAY_API_KEY}&q={query}&per_page=20&safesearch=true"
         resp = requests.get(url, timeout=30)
@@ -110,7 +123,7 @@ def download_stock_video(query="marble statue rain dark cinematic"):
     raise RuntimeError("Nabigo ang lahat ng attempts na mag-download ng valid na video.")
 
 # ============================================================
-# 3. GENERATE VOICEOVER + TIMINGS
+# 3. GENERATE VOICEOVER (Mas Mabagal na Boses)
 # ============================================================
 async def generate_voiceover_with_timings(text, output_path="voiceover.mp3"):
     voice = "en-US-AndrewNeural"
@@ -118,7 +131,8 @@ async def generate_voiceover_with_timings(text, output_path="voiceover.mp3"):
     
     for attempt in range(max_retries):
         try:
-            communicate = edge_tts.Communicate(text, voice, rate="-8%", pitch="-2Hz")
+            # Binaba natin sa -15% para maging mas malumanay at malinaw
+            communicate = edge_tts.Communicate(text, voice, rate="-15%", pitch="-2Hz")
             timings = []
             with open(output_path, "wb") as f:
                 async for chunk in communicate.stream():
@@ -138,7 +152,7 @@ async def generate_voiceover_with_timings(text, output_path="voiceover.mp3"):
             await asyncio.sleep(5)
 
 # ============================================================
-# 4. KARAOKE CAPTIONS
+# 4. KARAOKE CAPTIONS (Centered, No Overlap)
 # ============================================================
 def create_karaoke_captions(word_timings, script_text, total_duration, video_size, font_path, max_words_per_line=3):
     clips = []
@@ -180,7 +194,8 @@ def create_karaoke_captions(word_timings, script_text, total_duration, video_siz
             total_text = " ".join(w["word"] for w in group)
             bbox = draw.textbbox((0, 0), total_text, font=font)
             start_x = (video_size[0] - (bbox[2] - bbox[0])) // 2
-            y_pos = video_size[1] // 2 - 50
+            # Inusog natin pataas ng konti (mula -50 naging -100) para may espasyo sa ilalim
+            y_pos = video_size[1] // 2 - 100
             
             current_x = start_x
             for k, w in enumerate(group):
@@ -205,7 +220,7 @@ def create_karaoke_captions(word_timings, script_text, total_duration, video_siz
     return clips
 
 # ============================================================
-# 5. CREATE VIDEO (With Stronger End-Card CTA)
+# 5. CREATE VIDEO (Fixed End-Card Size and Position)
 # ============================================================
 def create_video(script_text, output_path="final_output.mp4"):
     print("[Video] Downloading background...")
@@ -241,23 +256,27 @@ def create_video(script_text, output_path="final_output.mp4"):
     font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
     caption_clips = create_karaoke_captions(word_timings, script_text, duration, clip.size, font_path)
 
-    # --- STRONGER END CARD ---
+    # --- FIXED END CARD (Mas Maliit at Nasa Ilalim) ---
     end_card_img = Image.new("RGBA", clip.size, (0, 0, 0, 0))
     draw_end = ImageDraw.Draw(end_card_img)
     try:
-        end_font = ImageFont.truetype(font_path, 45)
+        # Binaba natin ang font size sa 28 para hindi umabot sa karaoke text
+        end_font = ImageFont.truetype(font_path, 28)
     except:
         end_font = ImageFont.load_default()
-    end_text = "Save this. Then watch the full breakdown."
+    
+    end_text = "Watch the full breakdown on my channel"
     bbox = draw_end.textbbox((0, 0), end_text, font=end_font)
     x_pos = (clip.size[0] - (bbox[2] - bbox[0])) // 2
-    y_pos = clip.size[1] - 150
+    # Inilagay natin sa pinakababa (30px mula sa ilalim)
+    y_pos = clip.size[1] - 80
+    
     for dx in [-2, 0, 2]:
         for dy in [-2, 0, 2]:
             draw_end.text((x_pos + dx, y_pos + dy), end_text, font=end_font, fill=(0, 0, 0, 255))
     draw_end.text((x_pos, y_pos), end_text, font=end_font, fill=(255, 255, 255, 255))
     
-    end_card_clip = ImageClip(np.array(end_card_img)).with_start(duration - 2.5).with_duration(2.5)
+    end_card_clip = ImageClip(np.array(end_card_img)).with_start(duration - 3.0).with_duration(3.0)
 
     final_clip = CompositeVideoClip([clip, overlay] + caption_clips + [progress_bar, end_card_clip])
     final_clip = final_clip.with_audio(voice_audio)

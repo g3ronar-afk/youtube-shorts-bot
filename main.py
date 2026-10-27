@@ -27,21 +27,19 @@ YOUTUBE_CREDENTIALS_JSON = os.environ.get("YOUTUBE_CREDENTIALS")
 client = genai.Client(api_key=GEMINI_API_KEY)
 
 # ============================================================
-# 1. GENERATE CONTENT
+# 1. GENERATE CONTENT (Pattern: Bold Claim + Specific Enemy)
 # ============================================================
 def generate_content():
     prompt = (
-        "You are a master of Stoic philosophy, dark psychology, and viral marketing. "
-        "Write a powerful, cinematic message in STRICTLY ENGLISH about Stoicism, mental toughness, "
-        "or understanding manipulative behaviors of a narcissist. "
-        "RULES FOR VIRALITY:\n"
-        "1. Start with a NEGATIVE or CONTRARIAN hook in the first sentence (e.g., 'Stop doing this...', 'Being nice is weak...').\n"
-        "2. Keep it extremely short: STRICTLY between 18 to 22 words total.\n"
-        "3. End with a subtle Call to Action (e.g., 'Watch the full video on my channel', 'Follow for the truth').\n"
-        "4. DO NOT use Tagalog or any other language. English only.\n"
-        "Format exactly like this:\n"
-        "Title: [Catchy Short Title, max 60 chars, include a hook]\n"
-        "Script: [The message]"
+        "You are a Stoic philosopher and dark psychology expert writing for a US audience. "
+        "Write a 20-second YouTube Short script in STRICTLY ENGLISH about narcissistic manipulation or Stoic resilience. "
+        "HOOK RULE (first sentence): Use a BOLD CLAIM that confronts the viewer's behavior. "
+        "Examples: 'Most people try to defeat a narcissist through arguments. That's exactly what they want.' "
+        "'The reason you keep attracting narcissists isn't bad luck. It's this.' "
+        "'Stop explaining yourself to a narcissist. They already know. They just don't care.' "
+        "STRUCTURE: Hook (bold claim) + One sharp insight + End with a final statement (no CTA in script). "
+        "Keep it 18-22 words total. DO NOT use Tagalog. English only. "
+        "Format:\nTitle: [Keyword]: [Hook]\nScript: [The message]"
     )
     
     max_retries = 5
@@ -60,7 +58,7 @@ def generate_content():
                 raise
 
 def parse_gemini_output(raw_text):
-    title = "Unbreakable Mind #Shorts"
+    title = "Narcissist Manipulation: The Trap You Don't See"
     script = raw_text
     for line in raw_text.splitlines():
         line = line.strip()
@@ -68,18 +66,29 @@ def parse_gemini_output(raw_text):
             title = line.split(":", 1)[1].strip()
         elif line.lower().startswith("script:"):
             script = line.split(":", 1)[1].strip()
+    
+    if "narcissist" not in title.lower() and "stoic" not in title.lower():
+        title = f"Narcissist Manipulation: {title}"
+    
     if "#shorts" not in title.lower():
         title = f"{title} #Shorts"
     return title[:100], script
 
 # ============================================================
-# 2. DOWNLOAD STOCK VIDEO
+# 2. DOWNLOAD STOCK VIDEO (Statue + Rain = Visual Signature)
 # ============================================================
-def download_stock_video(query="dark cinematic vertical moody"):
+def download_stock_video(query="marble statue rain dark cinematic"):
     url = f"https://pixabay.com/api/videos/?key={PIXABAY_API_KEY}&q={query}&per_page=20&safesearch=true"
     resp = requests.get(url, timeout=30)
     resp.raise_for_status()
     hits = resp.json().get("hits", [])
+    if not hits:
+        # Fallback sa dark cinematic kung walang statue
+        query = "dark cinematic vertical moody"
+        url = f"https://pixabay.com/api/videos/?key={PIXABAY_API_KEY}&q={query}&per_page=20&safesearch=true"
+        resp = requests.get(url, timeout=30)
+        hits = resp.json().get("hits", [])
+    
     if not hits: raise RuntimeError("No video found.")
     
     random.shuffle(hits)
@@ -129,7 +138,7 @@ async def generate_voiceover_with_timings(text, output_path="voiceover.mp3"):
             await asyncio.sleep(5)
 
 # ============================================================
-# 4. KARAOKE CAPTIONS (Dynamic Auto-Fit + Pop Effect)
+# 4. KARAOKE CAPTIONS
 # ============================================================
 def create_karaoke_captions(word_timings, script_text, total_duration, video_size, font_path, max_words_per_line=3):
     clips = []
@@ -154,7 +163,6 @@ def create_karaoke_captions(word_timings, script_text, total_duration, video_siz
             img = Image.new("RGBA", video_size, (0, 0, 0, 0))
             draw = ImageDraw.Draw(img)
             
-            # Fit logic
             font_size = base_font_size
             total_text_width = 9999
             while total_text_width > max_width and font_size > 20:
@@ -166,7 +174,6 @@ def create_karaoke_captions(word_timings, script_text, total_duration, video_siz
                 if total_text_width > max_width:
                     font_size -= 5
 
-            # Para sa Pop Effect, gagawa tayo ng mas malaking font para sa active word
             try: pop_font = ImageFont.truetype(font_path, font_size + 10)
             except: pop_font = font
             
@@ -179,22 +186,15 @@ def create_karaoke_captions(word_timings, script_text, total_duration, video_siz
             for k, w in enumerate(group):
                 word_text = w["word"] + (" " if k < len(group) - 1 else "")
                 color = (255, 214, 10) if k == j else (255, 255, 255)
-                
-                # Gumamit ng pop_font kung ito ang active, regular font kung hindi
                 current_font = pop_font if k == j else font
-                
-                # Adjust Y para hindi tumalbog pataas ang pop effect (center align)
                 current_y = y_pos - (10 if k == j else 0)
                 
-                # Outline
                 for dx in [-stroke_width, 0, stroke_width]:
                     for dy in [-stroke_width, 0, stroke_width]:
                         draw.text((current_x + dx, current_y + dy), word_text, font=current_font, fill=(0, 0, 0, 255))
                 
-                # Kulay ng text
                 draw.text((current_x, current_y), word_text, font=current_font, fill=color + (255,))
                 
-                # Sukatin ang lapad base sa regular font para hindi gumalaw ang layout
                 bbox_w = draw.textbbox((0, 0), word_text, font=font)
                 current_x += bbox_w[2] - bbox_w[0]
             
@@ -205,7 +205,7 @@ def create_karaoke_captions(word_timings, script_text, total_duration, video_siz
     return clips
 
 # ============================================================
-# 5. CREATE VIDEO (With Progress Bar & Cinematic Look)
+# 5. CREATE VIDEO (With Stronger End-Card CTA)
 # ============================================================
 def create_video(script_text, output_path="final_output.mp4"):
     print("[Video] Downloading background...")
@@ -230,15 +230,10 @@ def create_video(script_text, output_path="final_output.mp4"):
         x2 = min(w, x1 + new_w)
         clip = clip.cropped(x1=x1, y1=0, x2=x2, y2=h)
 
-    # 1. Subtle Handheld Shake at Ken Burns
     clip = clip.with_effects([vfx.Resize(lambda t: 1 + 0.18 * (t / duration) + random.uniform(-0.005, 0.005))])
+    overlay = ColorClip(size=clip.size, color=(5, 15, 25)).with_opacity(0.6).with_duration(duration)
 
-    # 2. Dark Overlay + Teal Tint
-    overlay = ColorClip(size=clip.size, color=(5, 15, 25)).with_opacity(0.6).with_duration(duration) # Medyo maberde/teal
-
-    # 3. Progress Bar
     progress_bar = ColorClip(size=(clip.w, 8), color=(255, 0, 0)).with_duration(duration)
-    # Awtomatikong dumadami ang lapad base sa oras
     progress_bar = progress_bar.with_effects([vfx.Resize(lambda t: (clip.w * (t / duration) + 1, 8))])
     progress_bar = progress_bar.with_position(("left", "bottom"))
 
@@ -246,7 +241,25 @@ def create_video(script_text, output_path="final_output.mp4"):
     font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
     caption_clips = create_karaoke_captions(word_timings, script_text, duration, clip.size, font_path)
 
-    final_clip = CompositeVideoClip([clip, overlay] + caption_clips + [progress_bar])
+    # --- STRONGER END CARD ---
+    end_card_img = Image.new("RGBA", clip.size, (0, 0, 0, 0))
+    draw_end = ImageDraw.Draw(end_card_img)
+    try:
+        end_font = ImageFont.truetype(font_path, 45)
+    except:
+        end_font = ImageFont.load_default()
+    end_text = "Save this. Then watch the full breakdown."
+    bbox = draw_end.textbbox((0, 0), end_text, font=end_font)
+    x_pos = (clip.size[0] - (bbox[2] - bbox[0])) // 2
+    y_pos = clip.size[1] - 150
+    for dx in [-2, 0, 2]:
+        for dy in [-2, 0, 2]:
+            draw_end.text((x_pos + dx, y_pos + dy), end_text, font=end_font, fill=(0, 0, 0, 255))
+    draw_end.text((x_pos, y_pos), end_text, font=end_font, fill=(255, 255, 255, 255))
+    
+    end_card_clip = ImageClip(np.array(end_card_img)).with_start(duration - 2.5).with_duration(2.5)
+
+    final_clip = CompositeVideoClip([clip, overlay] + caption_clips + [progress_bar, end_card_clip])
     final_clip = final_clip.with_audio(voice_audio)
 
     final_clip.write_videofile(
@@ -283,7 +296,7 @@ def upload_to_youtube(video_file_path, title, description):
             "description": description,
             "tags": ["stoicism", "narcissism", "mindset", "shorts", "darkpsychology", 
                      "motivation", "mental toughness", "stoic wisdom", "narcissist", 
-                     "toxic relationship", "self improvement"],
+                     "toxic relationship", "self improvement", "emotional control"],
             "categoryId": "27",
         },
         "status": {"privacyStatus": "public", "selfDeclaredMadeForKids": False},
@@ -310,7 +323,7 @@ if __name__ == "__main__":
     description = (
         f"{script}\n\n"
         f"Watch the full breakdown on my channel!\n\n"
-        f"#Stoicism #Narcissism #Mindset #Shorts #DarkPsychology #MentalToughness #ToxicRelationships #SelfImprovement"
+        f"#Stoicism #Narcissist #EmotionalControl #Mindset #Shorts #DarkPsychology #MentalToughness #ToxicRelationships #SelfImprovement"
     )
     
     print("=== 2) Creating video ===")

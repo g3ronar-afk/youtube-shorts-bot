@@ -15,7 +15,8 @@ import google.oauth2.credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
-from moviepy import VideoFileClip, AudioFileClip, CompositeVideoClip, ColorClip, vfx, ImageClip
+from moviepy import VideoFileClip, AudioFileClip, CompositeAudioClip, CompositeVideoClip, ColorClip, vfx, ImageClip
+from moviepy.audio.fx import AudioFadeIn, AudioFadeOut, MultiplyVolume
 
 # ============================================================
 # CONFIG
@@ -86,7 +87,7 @@ def parse_gemini_output(raw_text):
     return title[:100], script
 
 # ============================================================
-# 2. DOWNLOAD STOCK VIDEO
+# 2. DOWNLOAD STOCK VIDEO & MUSIC
 # ============================================================
 def download_stock_video(query="marble statue rain dark cinematic"):
     url = f"https://pixabay.com/api/videos/?key={PIXABAY_API_KEY}&q={query}&per_page=20&safesearch=true"
@@ -119,6 +120,22 @@ def download_stock_video(query="marble statue rain dark cinematic"):
                     continue
     raise RuntimeError("Nabigo ang lahat ng attempts na mag-download ng valid na video.")
 
+def download_background_music():
+    # Awtomatikong nagdadownload ng royalty-free dark ambient music
+    # (Ito ay isang public domain URL para sa demonstration)
+    music_urls = [
+        "https://cdn.pixabay.com/audio/2022/02/10/audio_d0a13f69d2.mp3", # Dark ambient
+        "https://cdn.pixabay.com/audio/2022/03/15/audio_2a2856f9c1.mp3"  # Cinematic tension
+    ]
+    url = random.choice(music_urls)
+    print(f"[Music] Downloading background music...")
+    resp = requests.get(url, timeout=60)
+    if resp.status_code == 200 and len(resp.content) > 50000:
+        with open("background_music.mp3", "wb") as f:
+            f.write(resp.content)
+        return "background_music.mp3"
+    return None
+
 # ============================================================
 # 3. GENERATE VOICEOVER
 # ============================================================
@@ -148,13 +165,17 @@ async def generate_voiceover_with_timings(text, output_path="voiceover.mp3"):
             await asyncio.sleep(5)
 
 # ============================================================
-# 4. KARAOKE CAPTIONS (Fade & No Overlap)
+# 4. KARAOKE CAPTIONS
 # ============================================================
-def create_karaoke_captions(word_timings, script_text, total_duration, video_size, font_path, max_words_per_line=2):
+def create_karaoke_captions(word_timings, script_text, total_duration, video_size, font_path, max_words_per_line=3):
     clips = []
     stroke_width = 5
-    max_width = int(video_size[0] * 0.85)
+    max_width = int(video_size[0] * 0.90)
     base_font_size = 75
+    
+    active_bg_color = (0, 191, 73)  # Hormozi Green
+    active_text_color = (255, 255, 255)
+    inactive_text_color = (255, 255, 255)
     
     if not word_timings:
         words = script_text.split()
@@ -162,7 +183,6 @@ def create_karaoke_captions(word_timings, script_text, total_duration, video_siz
         time_per_word = total_duration / len(words)
         word_timings = [{"word": w, "start": i*time_per_word, "end": (i+1)*time_per_word} for i, w in enumerate(words)]
 
-    # Dalawang salita lang per line para siguradong hindi mag-ooverlap at kasya sa screen
     for i in range(0, len(word_timings), max_words_per_line):
         group = word_timings[i:i + max_words_per_line]
         if not group: continue
@@ -174,52 +194,52 @@ def create_karaoke_captions(word_timings, script_text, total_duration, video_siz
             img = Image.new("RGBA", video_size, (0, 0, 0, 0))
             draw = ImageDraw.Draw(img)
             
-            # Dynamic Fit
             font_size = base_font_size
             font = ImageFont.load_default()
+            
             while font_size > 20:
                 try: font = ImageFont.truetype(font_path, font_size)
                 except: pass
-                test_text = " ".join(w["word"] for w in group)
+                test_text = " ".join(w["word"].upper() for w in group)
                 bbox = draw.textbbox((0, 0), test_text, font=font)
                 if (bbox[2] - bbox[0]) <= max_width:
                     break
                 font_size -= 5
             
-            # Pare-pareho ang font size para walang overlap
-            total_text_width = 0
             word_widths = []
+            total_width = 0
             for w in group:
-                w_text = w["word"] + " "
+                w_text = w["word"].upper() + " "
                 bbox_w = draw.textbbox((0, 0), w_text, font=font)
                 w_width = bbox_w[2] - bbox_w[0]
                 word_widths.append(w_width)
-                total_text_width += w_width
+                total_width += w_width
             
-            start_x = (video_size[0] - total_text_width) // 2
+            start_x = (video_size[0] - total_width) // 2
             y_pos = (video_size[1] // 2) - 50
             
             current_x = start_x
             for k, w in enumerate(group):
-                word_text = w["word"] + (" " if k < len(group) - 1 else "")
+                word_text = w["word"].upper() + (" " if k < len(group) - 1 else "")
+                bbox_w = draw.textbbox((0, 0), word_text, font=font)
+                text_w = bbox_w[2] - bbox_w[0]
+                text_h = bbox_w[3] - bbox_w[1]
                 
                 if k == j:
-                    # ACTIVE: Dilaw, Buong Opacity
-                    color = (255, 214, 10, 255)
-                elif k < j:
-                    # PAST: Puti, Bahagyang Faded
-                    color = (255, 255, 255, 200)
+                    padding_x = 15
+                    padding_y = 8
+                    box_x1 = current_x - padding_x
+                    box_y1 = y_pos - padding_y
+                    box_x2 = current_x + text_w + padding_x
+                    box_y2 = y_pos + text_h + padding_y
+                    
+                    draw.rounded_rectangle([box_x1, box_y1, box_x2, box_y2], radius=10, fill=active_bg_color)
+                    draw.text((current_x, y_pos), word_text, font=font, fill=active_text_color)
                 else:
-                    # FUTURE: Gray, Faded
-                    color = (150, 150, 150, 100)
-                
-                # Outline (Itim)
-                for dx in [-stroke_width, 0, stroke_width]:
-                    for dy in [-stroke_width, 0, stroke_width]:
-                        draw.text((current_x + dx, y_pos + dy), word_text, font=font, fill=(0, 0, 0, 255))
-                
-                # Kulay ng text
-                draw.text((current_x, y_pos), word_text, font=font, fill=color)
+                    for dx in [-stroke_width, 0, stroke_width]:
+                        for dy in [-stroke_width, 0, stroke_width]:
+                            draw.text((current_x + dx, y_pos + dy), word_text, font=font, fill=(0, 0, 0, 255))
+                    draw.text((current_x, y_pos), word_text, font=font, fill=inactive_text_color)
                 
                 current_x += word_widths[k]
             
@@ -233,8 +253,10 @@ def create_karaoke_captions(word_timings, script_text, total_duration, video_siz
 # 5. CREATE VIDEO
 # ============================================================
 def create_video(script_text, output_path="final_output.mp4"):
-    print("[Video] Downloading background...")
+    print("[Video] Downloading background video...")
     bg_path = download_stock_video()
+    print("[Video] Downloading background music...")
+    music_path = download_background_music()
     
     print("[Video] Generating voiceover...")
     voice_path, word_timings = asyncio.run(generate_voiceover_with_timings(script_text))
@@ -266,9 +288,9 @@ def create_video(script_text, output_path="final_output.mp4"):
     font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
     caption_clips = create_karaoke_captions(word_timings, script_text, duration, clip.size, font_path)
 
-    # --- GIANT HOOK TEXT (Unang 2.5 Segundo) ---
+    # --- GIANT HOOK TEXT ---
     words = script_text.split()
-    hook_text = " ".join(words[:5]) + "..." 
+    hook_text = " ".join(words[:5]).upper() + "..." 
     
     hook_img = Image.new("RGBA", clip.size, (0, 0, 0, 0))
     draw_hook = ImageDraw.Draw(hook_img)
@@ -300,16 +322,16 @@ def create_video(script_text, output_path="final_output.mp4"):
     
     hook_clip = ImageClip(np.array(hook_img)).with_start(0).with_duration(2.5)
 
-    # --- END CARD CTA (Pinaikli at Pinaliit) ---
+    # --- END CARD CTA ---
     end_card_img = Image.new("RGBA", clip.size, (0, 0, 0, 0))
     draw_end = ImageDraw.Draw(end_card_img)
-    try: end_font = ImageFont.truetype(font_path, 30) # Maliit lang para hindi lumampas
+    try: end_font = ImageFont.truetype(font_path, 30)
     except: end_font = ImageFont.load_default()
     
     end_text = "Full breakdown on my channel"
     bbox = draw_end.textbbox((0, 0), end_text, font=end_font)
     x_pos = (clip.size[0] - (bbox[2] - bbox[0])) // 2
-    y_pos = clip.size[1] - 90 # Ilalim pero may margin
+    y_pos = clip.size[1] - 90
     
     for dx in [-2, 0, 2]:
         for dy in [-2, 0, 2]:
@@ -319,7 +341,26 @@ def create_video(script_text, output_path="final_output.mp4"):
     end_card_clip = ImageClip(np.array(end_card_img)).with_start(duration - 3.0).with_duration(3.0)
 
     final_clip = CompositeVideoClip([clip, overlay, hook_clip] + caption_clips + [progress_bar, end_card_clip])
-    final_clip = final_clip.with_audio(voice_audio)
+    
+    # --- AUDIO MIXING (Background Music + Voiceover) ---
+    if music_path and os.path.exists(music_path):
+        print("[Audio] Mixing background music with voiceover...")
+        bg_music = AudioFileClip(music_path)
+        
+        # I-loop ang music kung mas maikli siya sa video
+        if bg_music.duration < duration:
+            bg_music = bg_music.with_effects([vfx.Loop(duration=duration)])
+        else:
+            bg_music = bg_music.subclipped(0, duration)
+            
+        # Babaan ang volume ng music (15% lang) at lagyan ng fade in/out
+        bg_music = bg_music.with_effects([MultiplyVolume(0.15), AudioFadeIn(1.0), AudioFadeOut(1.0)])
+        
+        # Pagsamahin
+        final_audio = CompositeAudioClip([bg_music, voice_audio])
+        final_clip = final_clip.with_audio(final_audio)
+    else:
+        final_clip = final_clip.with_audio(voice_audio)
 
     final_clip.write_videofile(
         output_path, 
@@ -332,6 +373,8 @@ def create_video(script_text, output_path="final_output.mp4"):
     clip.close()
     voice_audio.close()
     final_clip.close()
+    if music_path and os.path.exists(music_path):
+        bg_music.close()
     return output_path
 
 # ============================================================

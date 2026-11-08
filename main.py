@@ -28,18 +28,19 @@ YOUTUBE_CREDENTIALS_JSON = os.environ.get("YOUTUBE_CREDENTIALS")
 client = genai.Client(api_key=GEMINI_API_KEY)
 
 # ============================================================
-# 1. GENERATE CONTENT
+# 1. GENERATE CONTENT (Enhanced Hook + High Conversion)
 # ============================================================
 def generate_content():
     prompt = (
-        "You are a Stoic philosopher writing for a US audience. "
-        "Write a 20-second YouTube Short script in STRICTLY ENGLISH about narcissistic manipulation. "
-        "TITLE RULE: Start the title with 'Narcissists hate when you...' or 'Stop [doing this] to a narcissist'. "
-        "SCRIPT HOOK RULE (first sentence): Use a BOLD CLAIM that validates the viewer's pain. "
-        "Examples: 'When you finally stop explaining yourself, you take away their power.' "
-        "'They feed on your confusion. Silence starves them.' "
-        "STRUCTURE: Hook (bold claim) + One sharp insight + End with a final statement (no CTA in script). "
+        "You are a master of Stoic philosophy and dark psychology writing for a US audience. "
+        "Write a 20-second YouTube Short script in STRICTLY ENGLISH about narcissistic manipulation or Stoic resilience. "
+        "HOOK RULE (First 1.5 seconds): Use a DIRECT CHALLENGE or REFRAME that the viewer recognizes in themselves. "
+        "Examples: 'You're explaining yourself to someone who already decided you're wrong.' "
+        "'The reason you keep attracting narcissists isn't bad luck. It's this.' "
+        "'Stop being nice. It's making you weak.' "
+        "STRUCTURE: Hook (bold, specific, ≤10 words) + One sharp insight + End with a MIC-DROP statement. "
         "Keep it 18-22 words total. DO NOT use Tagalog. English only. "
+        "TITLE RULE: Start with 'Narcissists hate when you...' or 'Stop [doing this]'. "
         "Format:\nTitle: [Title]\nScript: [The message]"
     )
     
@@ -54,9 +55,10 @@ def generate_content():
             script_line = [l for l in lines if l.lower().startswith("script:")]
             if script_line:
                 script = script_line[0].split(":", 1)[1].strip()
-                weak_starts = ["stop forgiving", "you need to", "it is important", "we should"]
+                # Auto-fix: Kung mahina ang hook, palitan ng mas matinding direct challenge
+                weak_starts = ["stop forgiving", "you need to", "it is important", "we should", "most people"]
                 if any(script.lower().startswith(w) for w in weak_starts):
-                    new_script = f"Most people try to defeat a narcissist through arguments. That's exactly what they want. {script}"
+                    new_script = f"Stop explaining yourself. They already decided. Your silence is the only answer that matters. {script}"
                     raw_text = raw_text.replace(script, new_script)
             
             return raw_text
@@ -256,7 +258,7 @@ def create_karaoke_captions(word_timings, script_text, total_duration, video_siz
     return clips
 
 # ============================================================
-# 5. CREATE VIDEO (Anti-Swipe Away Features)
+# 5. CREATE VIDEO (Anti-Swipe & High Conversion)
 # ============================================================
 def create_video(script_text, output_path="final_output.mp4"):
     print("[Video] Downloading background video...")
@@ -284,7 +286,7 @@ def create_video(script_text, output_path="final_output.mp4"):
         x2 = min(w, x1 + new_w)
         clip = clip.cropped(x1=x1, y1=0, x2=x2, y2=h)
 
-    # 1. FAST ZOOM IN SA UNANG SEGUNDO (Para may motion agad)
+    # 1. FAST ZOOM IN
     def zoom_effect(t):
         if t < 1.0:
             return 1.0 + (0.25 * t) 
@@ -305,7 +307,7 @@ def create_video(script_text, output_path="final_output.mp4"):
     font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
     caption_clips = create_karaoke_captions(word_timings, script_text, duration, clip.size, font_path)
 
-    # 4. INSTANT HOOK TEXT (Lalabas agad sa 0.0s)
+    # 4. INSTANT HOOK TEXT
     words = script_text.split()
     hook_text = " ".join(words[:4]).upper() + "..." 
     
@@ -339,16 +341,16 @@ def create_video(script_text, output_path="final_output.mp4"):
     
     hook_clip = ImageClip(np.array(hook_img)).with_start(0).with_duration(2.0)
 
-    # 5. WHITE FLASH (Pattern Interrupt sa 0.1s)
+    # 5. WHITE FLASH
     flash = ColorClip(size=clip.size, color=(255, 255, 255)).with_opacity(0.8).with_duration(0.1)
 
-    # 6. END CARD CTA
+    # 6. END CARD CTA (Benefit-driven)
     end_card_img = Image.new("RGBA", clip.size, (0, 0, 0, 0))
     draw_end = ImageDraw.Draw(end_card_img)
     try: end_font = ImageFont.truetype(font_path, 35)
     except: end_font = ImageFont.load_default()
     
-    end_text = "Full breakdown on my channel"
+    end_text = "Follow for daily Stoic survival rules"
     bbox = draw_end.textbbox((0, 0), end_text, font=end_font)
     x_pos = (clip.size[0] - (bbox[2] - bbox[0])) // 2
     y_pos = clip.size[1] - 100
@@ -360,7 +362,7 @@ def create_video(script_text, output_path="final_output.mp4"):
     
     end_card_clip = ImageClip(np.array(end_card_img)).with_start(duration - 2.5).with_duration(2.5)
 
-    # 7. PAGSAMAHIN LAHAT (Kasama ang Flash)
+    # 7. PAGSAMAHIN LAHAT
     final_clip = CompositeVideoClip([clip, overlay, hook_clip, flash] + caption_clips + [progress_bar, end_card_clip])
     
     # 8. AUDIO MIXING
@@ -442,7 +444,7 @@ if __name__ == "__main__":
     
     description = (
         f"{script}\n\n"
-        f"Watch the full breakdown on my channel!\n\n"
+        f"Follow for daily Stoic survival rules.\n\n"
         f"#Stoicism #Narcissist #EmotionalControl #Mindset #Shorts #DarkPsychology #MentalToughness #ToxicRelationships #SelfImprovement"
     )
     

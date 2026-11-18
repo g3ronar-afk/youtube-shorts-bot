@@ -9,5 +9,16 @@
     "voice": "en-US-GuyNeural",
     "theme": "gold",
     "duration": 21.8
+  },
+  {
+    "date": "2026-11-18T07:51:40+00:00",
+    "video_id": "ucX1M_2e8EU",
+    "format": "uncomfortable_truth",
+    "title": "The Hard Truth About Why You Stay",
+    "hook": "You stay because you love their potential.",
+    "script": "You stay because you love their potential. They showed you a glimpse of gold once. Now you accept dirt just to see it again. Stoics teach us to accept cold reality. Stop mourning the version they faked. They did not change; they just stopped pretending.",
+    "voice": "en-US-ChristopherNeural",
+    "theme": "red",
+    "duration": 17.5
   }
 ]

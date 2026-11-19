@@ -31,5 +31,16 @@
     "voice": "en-US-AndrewNeural",
     "theme": "cyan",
     "duration": 16.7
+  },
+  {
+    "date": "2026-11-19T23:28:35+00:00",
+    "video_id": "jPBMZXu1lo8",
+    "format": "stoic_rule",
+    "title": "Why your silence scares a manipulator",
+    "hook": "Reacting to their insult makes them your master.",
+    "script": "Reacting to their insult makes them your master. Epictetus warned that anger surrenders your freedom. A manipulator pokes you to steal your peace. They crave your emotional explosion. Stop feeding their chaos. Starve them with absolute silence. Your quiet indifference is their worst nightmare.",
+    "voice": "en-US-GuyNeural",
+    "theme": "cyan",
+    "duration": 20.3
   }
 ]

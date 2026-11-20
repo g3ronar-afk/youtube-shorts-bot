@@ -42,5 +42,16 @@
     "voice": "en-US-GuyNeural",
     "theme": "cyan",
     "duration": 20.3
+  },
+  {
+    "date": "2026-11-20T07:40:10+00:00",
+    "video_id": "aSLCX01wmNk",
+    "format": "scenario",
+    "title": "When their apology turns into your guilt",
+    "hook": "They apologize, but somehow you feel guilty.",
+    "script": "They apologize, but somehow you feel guilty. You express your boundary. They say, I guess I do everything wrong. Suddenly, you are the one reassuring them. This is not weakness on their part. It is tactical emotional displacement. Stoics master calm by watching actions, not distress. They traded guilt for your comfort.",
+    "voice": "en-US-BrianNeural",
+    "theme": "green",
+    "duration": 20.5
   }
 ]

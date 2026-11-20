@@ -53,5 +53,16 @@
     "voice": "en-US-BrianNeural",
     "theme": "green",
     "duration": 20.5
+  },
+  {
+    "date": "2026-11-20T23:01:44+00:00",
+    "video_id": "vC1mBqmgvNw",
+    "format": "exact_words",
+    "title": "Say these four words to end their game",
+    "hook": "When they attack your character, say four words.",
+    "script": "When they attack your character, say four words. Tell them, you are entitled to that opinion. Do not explain yourself. Do not defend your truth. Stoics knew peace comes from starving their drama. Refusing to argue leaves them fighting empty air. Silence is the ultimate plot twist.",
+    "voice": "en-US-AndrewNeural",
+    "theme": "gold",
+    "duration": 16.5
   }
 ]

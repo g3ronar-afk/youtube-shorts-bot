@@ -64,5 +64,16 @@
     "voice": "en-US-AndrewNeural",
     "theme": "gold",
     "duration": 16.5
+  },
+  {
+    "date": "2026-11-21T07:35:48+00:00",
+    "video_id": "hKp-G4cbd0c",
+    "format": "red_flags",
+    "title": "How manipulators turn your boundaries against you",
+    "hook": "Three cruel games covert manipulators play on you.",
+    "script": "Three cruel games covert manipulators play on you. One. They ruin your good news with a sudden personal crisis. Two. They turn your private confessions into casual jokes. Three. They act like the victim when you enforce a boundary. Silence is the boundary they cannot rewrite.",
+    "voice": "en-US-ChristopherNeural",
+    "theme": "cyan",
+    "duration": 20.9
   }
 ]

@@ -86,5 +86,16 @@
     "voice": "en-US-GuyNeural",
     "theme": "gold",
     "duration": 20.9
+  },
+  {
+    "date": "2026-11-22T07:17:35+00:00",
+    "video_id": "YQj7-AEjIrQ",
+    "format": "exact_words",
+    "title": "The one phrase that breaks their control",
+    "hook": "When they demand you justify your boundary, say this.",
+    "script": "When they demand you justify your boundary, say this. I am not defending my choice. Manipulators turn your explanations into weapons. They dissect your reasons until you feel guilty. Stoics refuse to give their enemies ammunition. Your refusal to argue is your ultimate victory.",
+    "voice": "en-US-GuyNeural",
+    "theme": "cyan",
+    "duration": 19.1
   }
 ]

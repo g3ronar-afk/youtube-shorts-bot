@@ -97,5 +97,16 @@
     "voice": "en-US-GuyNeural",
     "theme": "cyan",
     "duration": 19.1
+  },
+  {
+    "date": "2026-11-22T22:23:07+00:00",
+    "video_id": "MgEPOtCQt00",
+    "format": "red_flags",
+    "title": "When praise is actually a manipulation tactic",
+    "hook": "When they praise your patience, start paying attention.",
+    "script": "When they praise your patience, start paying attention. One. They compliment how well you handle their disrespect. Two. They act hurt the moment you set a boundary. Three. They apologize for your feelings, never their behavior. They never wanted peace, only your submission.",
+    "voice": "en-US-ChristopherNeural",
+    "theme": "gold",
+    "duration": 20.4
   }
 ]

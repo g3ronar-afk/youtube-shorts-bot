@@ -108,5 +108,16 @@
     "voice": "en-US-ChristopherNeural",
     "theme": "gold",
     "duration": 20.4
+  },
+  {
+    "date": "2026-11-23T08:00:55+00:00",
+    "video_id": "YyHu664dVMg",
+    "format": "stoic_rule",
+    "title": "Why arguing with a manipulator is a trap",
+    "hook": "Argue with a manipulator and you already lost.",
+    "script": "Argue with a manipulator and you already lost. Marcus Aurelius revealed the secret to winning. Never lower your standards to match their toxicity. They crave your anger to excuse their own. When you stay calm, their trap collapses. Your total peace is their worst nightmare.",
+    "voice": "en-US-AndrewNeural",
+    "theme": "green",
+    "duration": 15.9
   }
 ]

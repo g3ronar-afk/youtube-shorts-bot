@@ -130,5 +130,16 @@
     "voice": "en-US-GuyNeural",
     "theme": "cyan",
     "duration": 21.0
+  },
+  {
+    "date": "2026-11-25T01:18:38+00:00",
+    "video_id": "sdo6b1J5luY",
+    "format": "uncomfortable_truth",
+    "title": "Why fixing a manipulator feels so safe",
+    "hook": "Fixing them feels safer than healing yourself.",
+    "script": "Fixing them feels safer than healing yourself. Their constant chaos gives your life a misdirected purpose. As long as they are broken, you never face your own wounds. But toxic love is just an addiction to rescue. You are rescuing a ghost.",
+    "voice": "en-US-ChristopherNeural",
+    "theme": "green",
+    "duration": 16.6
   }
 ]

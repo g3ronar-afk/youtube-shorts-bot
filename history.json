@@ -141,5 +141,16 @@
     "voice": "en-US-ChristopherNeural",
     "theme": "green",
     "duration": 16.6
+  },
+  {
+    "date": "2026-11-25T08:59:16+00:00",
+    "video_id": "keyUhlkqvKQ",
+    "format": "exact_words",
+    "title": "Say this phrase when they force you to defend yourself",
+    "hook": "When they force you to defend yourself, say this.",
+    "script": "When they force you to defend yourself, say this. I am not asking for your permission. Never add a single explanation. Manipulators do not seek understanding. They look for weakness inside your words. Stoics knew quiet restraint protects your mind. Your calm refusal starves their power.",
+    "voice": "en-US-BrianNeural",
+    "theme": "gold",
+    "duration": 15.7
   }
 ]

@@ -152,5 +152,16 @@
     "voice": "en-US-BrianNeural",
     "theme": "gold",
     "duration": 15.7
+  },
+  {
+    "date": "2026-11-26T00:55:16+00:00",
+    "video_id": "Lkq1w0-l6Ag",
+    "format": "stoic_rule",
+    "title": "The Stoic Rule That Silences Manipulators",
+    "hook": "Defending your character gives them control over your mind.",
+    "script": "Defending your character gives them control over your mind. Stoics learned this centuries ago. A manipulator feeds on your desperate explanations. They want your emotional noise. Starve them of a reaction. Refuse to take offense and the insult dies. Your calm turns their trap into their cage.",
+    "voice": "en-US-BrianNeural",
+    "theme": "red",
+    "duration": 16.1
   }
 ]

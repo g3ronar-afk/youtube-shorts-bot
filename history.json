@@ -174,5 +174,16 @@
     "voice": "en-US-BrianNeural",
     "theme": "gold",
     "duration": 13.1
+  },
+  {
+    "date": "2026-11-27T01:00:07+00:00",
+    "video_id": "nCHvNOScgDw",
+    "format": "reframe",
+    "title": "Why staying quiet only feeds a manipulator",
+    "hook": "Absorbing their insult does not keep the peace.",
+    "script": "Absorbing their insult does not keep the peace. It only trains them to hit you harder next time. Ancient Stoics knew that quiet endurance without boundaries is self-betrayal. When you swallow your anger, you feed their control. Silence is not peace; it is permission.",
+    "voice": "en-US-GuyNeural",
+    "theme": "cyan",
+    "duration": 17.1
   }
 ]

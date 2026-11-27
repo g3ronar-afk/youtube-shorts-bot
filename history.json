@@ -185,5 +185,16 @@
     "voice": "en-US-GuyNeural",
     "theme": "cyan",
     "duration": 17.1
+  },
+  {
+    "date": "2026-11-27T08:58:20+00:00",
+    "video_id": "tOa5qrZQ0bw",
+    "format": "scenario",
+    "title": "The real reason they keep forgetting promises",
+    "hook": "You bring up their broken promise.",
+    "script": "You bring up their broken promise. They say they simply forgot. But it was never memory loss. It was a deliberate test. They wanted to see your standards drop. Observe their actions, never their excuses. Silence is the answer they cannot rewrite.",
+    "voice": "en-US-AndrewNeural",
+    "theme": "gold",
+    "duration": 13.9
   }
 ]

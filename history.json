@@ -207,5 +207,16 @@
     "voice": "en-US-ChristopherNeural",
     "theme": "cyan",
     "duration": 22.0
+  },
+  {
+    "date": "2026-11-28T08:17:40+00:00",
+    "video_id": "0CuDHeSXJRA",
+    "format": "stoic_rule",
+    "title": "Disarm Toxic Insults With One Stoic Rule",
+    "hook": "When they insult you, agree with them completely.",
+    "script": "When they insult you, agree with them completely. A manipulator wants your defensive rage. Epictetus knew that defending flaws gives them power. Instead, tell them you have even worse faults. Their words lose all force. They cannot weaponize what you already own.",
+    "voice": "en-US-GuyNeural",
+    "theme": "cyan",
+    "duration": 18.0
   }
 ]

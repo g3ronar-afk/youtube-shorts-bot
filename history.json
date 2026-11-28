@@ -196,5 +196,16 @@
     "voice": "en-US-AndrewNeural",
     "theme": "gold",
     "duration": 13.9
+  },
+  {
+    "date": "2026-11-28T00:25:42+00:00",
+    "video_id": "dzrrI0rp7MQ",
+    "format": "exact_words",
+    "title": "The exact phrase that disarms a manipulator",
+    "hook": "When they bait you into an argument, say this.",
+    "script": "When they bait you into an argument, say this. Say, you are allowed to see it that way. Then stop talking. Do not explain your side. Do not defend your position. Manipulators feed on your desire for agreement. Stoics know their view is not your reality. Silence starves their power over you.",
+    "voice": "en-US-ChristopherNeural",
+    "theme": "cyan",
+    "duration": 22.0
   }
 ]

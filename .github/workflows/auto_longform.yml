@@ -1,0 +1,115 @@
+name: Auto Long-Form Video
+
+# One 6-8 minute chaptered video per week. It uploads as PRIVATE by default:
+# watch it in YouTube Studio, then switch it to Public (this is the "human review" step that keeps
+# the channel safe from YouTube's inauthentic-content rules).
+on:
+  schedule:
+    - cron: "0 14 * * 0"      # Sundays 14:00 UTC (9 AM ET)
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Render only - do NOT upload (video + thumbnail are attached to the run)"
+        type: boolean
+        default: true
+      topic:
+        description: "Optional: force a topic/title idea (leave empty to let the bot choose)"
+        type: string
+        default: ""
+      my_take:
+        description: "Optional: 1-3 sentences of YOUR opinion or story. The script is built around it."
+        type: string
+        default: ""
+
+permissions:
+  contents: write             # lets the job commit longform.json back to the repo
+
+concurrency:
+  group: auto-longform
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && 'true' || 'false' }}
+      LONGFORM_PRIVACY: ${{ vars.LONGFORM_PRIVACY || 'private' }}     # repo Variable: private | unlisted | public
+      TTS_ENGINE: ${{ vars.TTS_ENGINE || 'auto' }}                    # auto | edge | kokoro
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install ffmpeg + espeak-ng (optional)
+        continue-on-error: true
+        run: |
+          sudo apt-get update -qq
+          command -v ffmpeg >/dev/null 2>&1 || sudo apt-get install -y -qq ffmpeg
+          sudo apt-get install -y -qq espeak-ng
+
+      - name: Install Python deps
+        run: pip install -r requirements.txt
+
+      # Kokoro-82M: open-source (Apache-2.0) neural narrator, noticeably more natural than Edge TTS.
+      # Entirely optional: if anything here fails, longform.py falls back to Edge TTS automatically.
+      - name: Cache Kokoro model
+        if: ${{ env.TTS_ENGINE != 'edge' }}
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: kokoro-82m-v1
+
+      - name: Install Kokoro (optional)
+        if: ${{ env.TTS_ENGINE != 'edge' }}
+        continue-on-error: true
+        run: |
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install "kokoro>=0.9.4" soundfile
+
+      - name: Generate long-form video (and upload unless dry run)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}      # optional secret, better landscape footage
+          YOUTUBE_CREDENTIALS: ${{ secrets.YOUTUBE_CREDENTIALS }}
+          TOPIC: ${{ github.event_name == 'workflow_dispatch' && inputs.topic || '' }}
+          MY_TAKE: ${{ github.event_name == 'workflow_dispatch' && inputs.my_take || '' }}
+        run: python longform.py
+
+      - name: Attach preview (dry run only)
+        if: ${{ env.DRY_RUN == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: preview-longform
+          path: |
+            longform_output.mp4
+            thumbnail.jpg
+            longform_description.txt
+          if-no-files-found: ignore
+          retention-days: 3
+
+      - name: Attach logs if the run failed
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: failure-logs
+          path: work_long/*.log
+          if-no-files-found: ignore
+          retention-days: 3
+
+      - name: Save long-form history
+        if: ${{ env.DRY_RUN != 'true' }}
+        continue-on-error: true
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add longform.json
+          git diff --staged --quiet || git commit -m "chore: update long-form history [skip ci]"
+          git push || (git pull --rebase && git push)
